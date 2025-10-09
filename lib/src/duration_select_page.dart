@@ -2,21 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'training_repo.dart';
 import 'home_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DurationSelectPage extends StatelessWidget {
   const DurationSelectPage({super.key});
 
   Future<void> _choose4Weeks(BuildContext context) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    await TrainingRepo.setTrainingWeeks(uid, 4);
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null){
+      // กรณี user ปกติ
+      final uid = user.uid;
+      await TrainingRepo.setTrainingWeeks(uid, 4);
+    }else{
+      // กรณี guest
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('training_weeks', 4);
+    }
 
     // อ่าน km เพื่อส่งให้ Home แสดง (ถ้าเพิ่งเลือกมาก่อนหน้านี้จะมีแน่นอน)
-    final data = await TrainingRepo.fetchPrefs(uid);
-    final km = (data?['target_km'] as int?) ?? 5;
+    //final data = await TrainingRepo.fetchPrefs(user!.uid);
+    //final km = (data?['target_km'] as int?) ?? 5;
 
     if (context.mounted) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => HomePage(targetKm: km, trainingWeeks: 4)),
+        MaterialPageRoute(builder: (_) => HomePage()),
         (_) => false,
       );
     }

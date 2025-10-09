@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rmapp/src/distance_select_page.dart';
+import 'package:rmapp/src/home_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -51,6 +54,12 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const RegisterPage()),
     );
+  }
+
+  void _guestLogin() async {
+    Navigator.of( context).push(
+      MaterialPageRoute(builder: (_) => const DistanceSelectPage()),
+    ); 
   }
 
   @override
@@ -132,6 +141,9 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: _goToRegister,
                         child: const Text('สร้างบัญชีใหม่'),
                       ),
+                      TextButton(onPressed: _guestLogin,
+                       child: const Text('Guest'),
+                       ),
                     ],
                   ),
                 ],

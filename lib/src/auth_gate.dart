@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_page.dart';
 import 'login_page.dart';
 import 'distance_select_page.dart';
@@ -42,7 +41,7 @@ class AuthGate extends StatelessWidget {
             final (km, weeks) = prefSnap.data!;
             if (km == null) return const DistanceSelectPage();       // ยังไม่เลือกระยะทาง
             if (weeks == null) return const DurationSelectPage();     // ยังไม่เลือกสัปดาห์
-            return HomePage(targetKm: km, trainingWeeks: weeks);      // ครบ → Home
+            return HomePage();      // ครบ → Home
           },
         );
       },

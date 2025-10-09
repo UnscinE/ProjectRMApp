@@ -88,7 +88,7 @@ class DashboardTab extends StatelessWidget {
           ),
 
           const SizedBox(height: 8),
-          Text('สวัสดี $email • โปรแกรม ${targetKm} กม. • ${trainingWeeks} สัปดาห์',
+          Text('สวัสดี $email • โปรแกรม $targetKm กม. • $trainingWeeks สัปดาห์',
               style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
         ],
       ),
