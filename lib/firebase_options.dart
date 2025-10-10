@@ -21,25 +21,13 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -53,12 +41,49 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDKtzifxHiEKgtL-ThnUAJnzw03EEr4n0A',
-    appId: '1:124363499893:web:fdaa00974085f5bd51cb3c',
-    messagingSenderId: '124363499893',
-    projectId: 'apprmimu',
-    authDomain: 'apprmimu.firebaseapp.com',
-    storageBucket: 'apprmimu.firebasestorage.app',
-    measurementId: 'G-LT8E44HNLE',
+    apiKey: 'AIzaSyAH4jIwfohhR0A8DRfVYVIuh55HsQVQEtk',
+    appId: '1:45382752673:web:b8daf9e53d1cabde1553e0',
+    messagingSenderId: '45382752673',
+    projectId: 'rmapp-66582',
+    authDomain: 'rmapp-66582.firebaseapp.com',
+    storageBucket: 'rmapp-66582.firebasestorage.app',
+    measurementId: 'G-K6XH7MFS6G',
   );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyCS1tAjZa9BAImxO5e_F9oymx9bV8qjpN4',
+    appId: '1:45382752673:ios:5b364b2c519ac01a1553e0',
+    messagingSenderId: '45382752673',
+    projectId: 'rmapp-66582',
+    storageBucket: 'rmapp-66582.firebasestorage.app',
+    iosBundleId: 'com.example.rmapp',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCS1tAjZa9BAImxO5e_F9oymx9bV8qjpN4',
+    appId: '1:45382752673:ios:5b364b2c519ac01a1553e0',
+    messagingSenderId: '45382752673',
+    projectId: 'rmapp-66582',
+    storageBucket: 'rmapp-66582.firebasestorage.app',
+    iosBundleId: 'com.example.rmapp',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyCgQ_vCohIhs5y7V1862xr16XuDUdYnxKU',
+    appId: '1:45382752673:android:2c39097ff59f01951553e0',
+    messagingSenderId: '45382752673',
+    projectId: 'rmapp-66582',
+    storageBucket: 'rmapp-66582.firebasestorage.app',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyAH4jIwfohhR0A8DRfVYVIuh55HsQVQEtk',
+    appId: '1:45382752673:web:92763bc4ae52e0b31553e0',
+    messagingSenderId: '45382752673',
+    projectId: 'rmapp-66582',
+    authDomain: 'rmapp-66582.firebaseapp.com',
+    storageBucket: 'rmapp-66582.firebasestorage.app',
+    measurementId: 'G-LLG4GPK79L',
+  );
+
 }

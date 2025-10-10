@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "45382752673",
+    "project_id": "rmapp-66582",
+    "storage_bucket": "rmapp-66582.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:45382752673:android:2c39097ff59f01951553e0",
+        "android_client_info": {
+          "package_name": "com.example.rmapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgQ_vCohIhs5y7V1862xr16XuDUdYnxKU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

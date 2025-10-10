@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'run_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'tabs/dashboard_tab.dart';
+import 'tabs/home_tab.dart';
 import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
+import 'tabs/trainning_tab.dart';
+import 'tabs/account_tab.dart';
+
 import 'training_repo.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -69,8 +72,16 @@ class _HomePageState extends State<HomePage> {
         },
         email: user?.email ?? 'Runner',
       ),
+
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
+
       const CalendarTab(), // mock %
+
+      const TrainningTab(),
+      
+      AccountTab(email: user?.email ?? 'Runner', onSignOut: () {
+        FirebaseAuth.instance.signOut();
+      }),
     ];
 
     return Scaffold(
@@ -96,6 +107,16 @@ class _HomePageState extends State<HomePage> {
             selectedIcon: Icon(Icons.calendar_month),
             label: 'Calendar',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.run_circle_outlined),
+            selectedIcon: Icon(Icons.run_circle),
+            label: 'Training',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_circle_outlined),
+            selectedIcon: Icon(Icons.account_circle),
+            label: 'Account',
+          )
         ],
       ),
     );
