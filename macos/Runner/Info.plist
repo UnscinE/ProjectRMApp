@@ -28,5 +28,10 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>แอปต้องการเข้าถึงปฏิทินเพื่อเพิ่มกำหนดการฝึก</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+
+
 </dict>
 </plist>

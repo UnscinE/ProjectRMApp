@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'run_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'tabs/home_tab.dart';
 import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
 import 'tabs/trainning_tab.dart';
 import 'tabs/account_tab.dart';
 
-import 'training_repo.dart';
+import 'training_repo.dart' as repo;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -33,19 +34,17 @@ class _HomePageState extends State<HomePage> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // ผู้ใช้ล็อกอิน
       final uid = user.uid;
-      final data = await TrainingRepo.fetchPrefs(uid);
+      final data = await repo.TrainingRepo.fetchPrefs(uid);
       final km = (data?['target_km'] as int?) ?? 5;
       final weeks = (data?['training_weeks'] as int?) ?? 4;
 
       setState(() {
         targetKm = km;
         trainingWeeks = weeks;
-        isLoading = false; // << เพิ่มบรรทัดนี้
+        isLoading = false;
       });
     } else {
-      // ผู้ใช้ guest
       final prefs = await SharedPreferences.getInstance();
       final km = prefs.getInt('target_km') ?? 5;
       final weeks = prefs.getInt('training_weeks') ?? 4;
@@ -62,7 +61,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    final tabs = [
+    final List<Widget> tabs = [
       DashboardTab(
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
@@ -73,22 +72,14 @@ class _HomePageState extends State<HomePage> {
         },
         email: user?.email ?? 'Runner',
       ),
-
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
-
       const CalendarTab(),
-
-      const TrainningTab(),
-
+      const TrainningTab(), // ✅ ใช้ const TrainningTab() เพราะ class เป็น Widget แล้ว
       AccountTab(
         email: user?.email ?? 'Runner',
         onSignOut: () async {
           await FirebaseAuth.instance.signOut();
-          if (mounted) {
-            setState(() {
-              _index = 0; // กลับไปหน้า Home
-            });
-          }
+          if (mounted) setState(() => _index = 0);
         },
       ),
     ];
