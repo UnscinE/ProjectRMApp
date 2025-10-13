@@ -33,7 +33,7 @@ class _HomePageState extends State<HomePage> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // กรณี user ปกติ
+      // ผู้ใช้ล็อกอิน
       final uid = user.uid;
       final data = await TrainingRepo.fetchPrefs(uid);
       final km = (data?['target_km'] as int?) ?? 5;
@@ -42,9 +42,10 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         targetKm = km;
         trainingWeeks = weeks;
+        isLoading = false; // << เพิ่มบรรทัดนี้
       });
     } else {
-      // กรณี guest
+      // ผู้ใช้ guest
       final prefs = await SharedPreferences.getInstance();
       final km = prefs.getInt('target_km') ?? 5;
       final weeks = prefs.getInt('training_weeks') ?? 4;
@@ -66,27 +67,37 @@ class _HomePageState extends State<HomePage> {
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
         onContinue: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const RunPage()));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const RunPage()),
+          );
         },
         email: user?.email ?? 'Runner',
       ),
 
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
 
-      const CalendarTab(), // mock %
+      const CalendarTab(),
 
       const TrainningTab(),
-      
-      AccountTab(email: user?.email ?? 'Runner', onSignOut: () {
-        FirebaseAuth.instance.signOut();
-      }),
+
+      AccountTab(
+        email: user?.email ?? 'Runner',
+        onSignOut: () async {
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _index = 0; // กลับไปหน้า Home
+            });
+          }
+        },
+      ),
     ];
 
     return Scaffold(
       body: SafeArea(
-        child: IndexedStack(index: _index, children: tabs),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : IndexedStack(index: _index, children: tabs),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -116,7 +127,7 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.account_circle_outlined),
             selectedIcon: Icon(Icons.account_circle),
             label: 'Account',
-          )
+          ),
         ],
       ),
     );
