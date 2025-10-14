@@ -40,10 +40,8 @@ dependencies:
   shared_preferences: ^2.5.3
   location: ^8.0.1 # Use the latest version
   sensors_plus: ^7.0.0
-  add_2_calendar: ^2.2.3
-  url_launcher: ^6.3.0
-  path_provider: ^2.1.4         # สร้างไฟล์ชั่วคราวบนมือถือ/เดสก์ท็อป
-  open_filex: ^4.5.0            # เปิดไฟล์ .ics ด้วยแอปปฏิทินเครื่อง
+  url_launcher: ^6.3.2
+  add_2_calendar: ^3.0.1
 
 dev_dependencies:
   flutter_test:
