@@ -222,56 +222,94 @@ Future<List<devcal.Calendar>> getWritableCalendars() async {
 
 
 /// dialog ให้เลือกเล่ม + ปุ่มไป “สร้างเล่มใหม่” และ “นำเข้า .ics”
+// แทนที่ของเดิมทั้งฟังก์ชันนี้
 Future<String?> pickCalendarIdDialog(BuildContext context) async {
-  try {
-    final calendars = await getWritableCalendars();
-    return await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('เลือกเล่มปฏิทิน'),
-        children: [
-          for (final c in calendars)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, c.id),
-              child: Text(
-                '${c.name ?? 'Calendar'}'
-                '${(c.accountName ?? '').isNotEmpty ? ' • ${c.accountName}' : ''}',
-              ),
-            ),
-          const Divider(),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx, null);
-              openGoogleCalendarCreateCalendarPage();
-            },
-            child: const Row(
-              children: [
-                Icon(Icons.add, size: 18),
-                SizedBox(width: 8),
-                Text('สร้างเล่มใหม่ใน Google Calendar'),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx, null);
-              openGoogleCalendarImportPage();
-            },
-            child: const Row(
-              children: [
-                Icon(Icons.file_upload_outlined, size: 18),
-                SizedBox(width: 8),
-                Text('นำเข้าไฟล์ .ics ไปยัง Google Calendar'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  } catch (_) {
-    return null;
+  // ฟังก์ชันดึงรายชื่อ (เรียกซ้ำได้)
+  Future<List<devcal.Calendar>> _load() async {
+    try {
+      return await getWritableCalendars(); // เราเรียก retrieve ทุกครั้งอยู่แล้ว
+    } catch (_) {
+      return <devcal.Calendar>[];
+    }
   }
+
+  final cals = await _load();
+
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) {
+      // ให้ dialog รีเฟรชตัวเองได้
+      return StatefulBuilder(
+        builder: (ctx, setState) {
+          List<devcal.Calendar> calendars = cals;
+
+          Future<void> _refresh() async {
+            final latest = await _load();
+            setState(() => calendars = latest);
+          }
+
+          return SimpleDialog(
+            titlePadding: const EdgeInsets.only(left: 16, right: 8, top: 12, bottom: 0),
+            contentPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+            title: Row(
+              children: [
+                const Expanded(child: Text('เลือกเล่มปฏิทิน')),
+                IconButton(
+                  tooltip: 'รีเฟรชรายชื่อ',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refresh,
+                )
+              ],
+            ),
+            children: [
+              if (calendars.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text('ยังไม่พบเล่มที่เขียนได้ (ลองกดรีเฟรช หรือเปิด Google Calendar แล้ว Refresh)'),
+                ),
+              for (final c in calendars)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, c.id),
+                  child: Text(
+                    '${c.name ?? 'Calendar'}'
+                    '${(c.accountName ?? '').isNotEmpty ? ' • ${c.accountName}' : ''}',
+                  ),
+                ),
+              const Divider(),
+              SimpleDialogOption(
+                onPressed: () {
+                  Navigator.pop(ctx, null);
+                  openGoogleCalendarCreateCalendarPage();
+                },
+                child: const Row(
+                  children: [
+                    Icon(Icons.add, size: 18),
+                    SizedBox(width: 8),
+                    Text('สร้างเล่มใหม่ใน Google Calendar'),
+                  ],
+                ),
+              ),
+              SimpleDialogOption(
+                onPressed: () {
+                  Navigator.pop(ctx, null);
+                  openGoogleCalendarImportPage();
+                },
+                child: const Row(
+                  children: [
+                    Icon(Icons.file_upload_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('นำเข้าไฟล์ .ics ไปยัง Google Calendar'),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }
+
 
 /// load/save calendarId ที่เลือกไว้
 Future<String?> loadSelectedCalendarId() async {
@@ -407,4 +445,23 @@ Future<void> addTodaysPlanToDeviceCalendar({
     end: tzEnd,
   );
   await plugin.createOrUpdateEvent(ev);
+}
+
+Future<void> debugPrintCalendars() async {
+  try {
+    final plugin = devcal.DeviceCalendarPlugin();
+    final perms = await plugin.requestPermissions();
+    if (perms.data != true) {
+      print('Calendar permission not granted');
+      return;
+    }
+    final res = await plugin.retrieveCalendars();
+    final list = res.data ?? <devcal.Calendar>[];
+    print('---- Calendars from provider ----');
+    for (final c in list) {
+      print('id=${c.id} | name=${c.name} | account=${c.accountName} | isReadOnly=${c.isReadOnly}');
+    }
+  } catch (e) {
+    print('debugPrintCalendars error: $e');
+  }
 }
