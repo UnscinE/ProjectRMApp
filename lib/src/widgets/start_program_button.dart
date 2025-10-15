@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../calendar_helper.dart';
+import '../widgets/calendar_helper.dart'; // ใช้ addStartProgramToCalendar ที่ helper
 
 class StartProgramButton extends StatelessWidget {
   final int targetKm;
@@ -24,7 +24,6 @@ class StartProgramButton extends StatelessWidget {
     );
     if (picked == null) return;
 
-    // ตั้งเวลาเริ่มเป็น 08:00 (แก้ได้)
     final start = DateTime(picked.year, picked.month, picked.day, 8, 0);
 
     await addStartProgramToCalendar(
