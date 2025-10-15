@@ -115,6 +115,7 @@ class _TrainningTabState extends State<TrainningTab> {
     return Scaffold(
       appBar: AppBar(title: const Text('Training Data')),
       body: Center(
+
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(

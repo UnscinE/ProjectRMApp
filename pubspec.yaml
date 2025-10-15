@@ -40,6 +40,7 @@ dependencies:
   shared_preferences: ^2.5.3
   location: ^8.0.1 # Use the latest version
   sensors_plus: ^7.0.0
+  add_2_calendar: ^2.1.2
 
 dev_dependencies:
   flutter_test:

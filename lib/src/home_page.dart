@@ -7,6 +7,7 @@ import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
 import 'tabs/trainning_tab.dart';
 import 'tabs/account_tab.dart';
+import 'tabs/trainning2_tab.dart';
 
 import 'training_repo.dart';
 
@@ -67,9 +68,9 @@ class _HomePageState extends State<HomePage> {
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
         onContinue: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const RunPage()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const RunPage()));
         },
         email: user?.email ?? 'Runner',
       ),
@@ -78,7 +79,7 @@ class _HomePageState extends State<HomePage> {
 
       const CalendarTab(),
 
-      const TrainningTab(),
+      const Trainning2Tab(),
 
       AccountTab(
         email: user?.email ?? 'Runner',
