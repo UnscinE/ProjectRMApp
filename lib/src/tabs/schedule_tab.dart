@@ -1,11 +1,12 @@
 // lib/src/tabs/schedule_tab.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/calendar_helper.dart' as cal;
 
 class ScheduleTab extends StatefulWidget {
-  final int weeks;    // เช่น 4
+  final int weeks; // เช่น 4
   final int targetKm; // เช่น 5
   const ScheduleTab({super.key, required this.weeks, required this.targetKm});
 
@@ -17,7 +18,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
   int _weekIndex = 0;
 
   String? _calendarId;
-  String  _calendarTitle = 'ยังไม่ได้เลือกเล่ม';
+  String _calendarTitle = 'ยังไม่ได้เลือกเล่ม';
 
   @override
   void initState() {
@@ -37,7 +38,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
           _calendarId = id;
           _calendarTitle = matched.isNotEmpty
               ? '${matched.first.name ?? 'Calendar'}'
-                '${(matched.first.accountName ?? '').isNotEmpty ? ' • ${matched.first.accountName}' : ''}'
+                    '${(matched.first.accountName ?? '').isNotEmpty ? ' • ${matched.first.accountName}' : ''}'
               : id;
         });
       }
@@ -50,7 +51,12 @@ class _ScheduleTabState extends State<ScheduleTab> {
         return const [
           {'day': 'Mon', 'dist': '3 KM', 'time': '21 Min', 'note': 'Long run'},
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {'day': 'Wed', 'dist': '400 m × 4', 'time': '1:30 / 3:50 Min/Set', 'note': 'Interval'},
+          {
+            'day': 'Wed',
+            'dist': '400 m × 4',
+            'time': '1:30 / 3:50 Min/Set',
+            'note': 'Interval',
+          },
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Fri', 'dist': '2 KM', 'time': '14 Min', 'note': 'Recovery'},
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
@@ -58,11 +64,26 @@ class _ScheduleTabState extends State<ScheduleTab> {
         ];
       case 1:
         return const [
-          {'day': 'Mon', 'dist': '3.5 KM', 'time': '24 Min', 'note': 'Long run'},
+          {
+            'day': 'Mon',
+            'dist': '3.5 KM',
+            'time': '24 Min',
+            'note': 'Long run',
+          },
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {'day': 'Wed', 'dist': '400 m × 5', 'time': '1:30 / 3:45 Min/Set', 'note': 'Interval'},
+          {
+            'day': 'Wed',
+            'dist': '400 m × 5',
+            'time': '1:30 / 3:45 Min/Set',
+            'note': 'Interval',
+          },
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {'day': 'Fri', 'dist': '2.5 KM', 'time': '16 Min', 'note': 'Recovery'},
+          {
+            'day': 'Fri',
+            'dist': '2.5 KM',
+            'time': '16 Min',
+            'note': 'Recovery',
+          },
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Sun', 'dist': '2.5 KM', 'time': '15 Min', 'note': 'Tempo'},
         ];
@@ -70,7 +91,12 @@ class _ScheduleTabState extends State<ScheduleTab> {
         return const [
           {'day': 'Mon', 'dist': '4 KM', 'time': '27 Min', 'note': 'Long run'},
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {'day': 'Wed', 'dist': '400 m × 6', 'time': '1:25 / 3:40 Min/Set', 'note': 'Interval'},
+          {
+            'day': 'Wed',
+            'dist': '400 m × 6',
+            'time': '1:25 / 3:40 Min/Set',
+            'note': 'Interval',
+          },
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Fri', 'dist': '3 KM', 'time': '19 Min', 'note': 'Recovery'},
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
@@ -78,11 +104,26 @@ class _ScheduleTabState extends State<ScheduleTab> {
         ];
       default:
         return const [
-          {'day': 'Mon', 'dist': '4.5 KM', 'time': '30 Min', 'note': 'Long run'},
+          {
+            'day': 'Mon',
+            'dist': '4.5 KM',
+            'time': '30 Min',
+            'note': 'Long run',
+          },
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {'day': 'Wed', 'dist': '400 m × 6', 'time': '1:20 / 3:35 Min/Set', 'note': 'Interval'},
+          {
+            'day': 'Wed',
+            'dist': '400 m × 6',
+            'time': '1:20 / 3:35 Min/Set',
+            'note': 'Interval',
+          },
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {'day': 'Fri', 'dist': '3.5 KM', 'time': '22 Min', 'note': 'Recovery'},
+          {
+            'day': 'Fri',
+            'dist': '3.5 KM',
+            'time': '22 Min',
+            'note': 'Recovery',
+          },
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Sun', 'dist': '3.5 KM', 'time': '21 Min', 'note': 'Tempo'},
         ];
@@ -109,7 +150,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
       _calendarId = id;
       _calendarTitle = matched.isNotEmpty
           ? '${matched.first.name ?? 'Calendar'}'
-            '${(matched.first.accountName ?? '').isNotEmpty ? ' • ${matched.first.accountName}' : ''}'
+                '${(matched.first.accountName ?? '').isNotEmpty ? ' • ${matched.first.accountName}' : ''}'
           : id;
     });
   }
@@ -119,63 +160,56 @@ class _ScheduleTabState extends State<ScheduleTab> {
     return DateTime(mon.year, mon.month, mon.day);
   }
 
-  Future<void> _addWholeProgramToCalendar() async {
+  Future<void> _addWholeProgramToCalendar(BuildContext context) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,
       firstDate: now.subtract(const Duration(days: 1)),
       lastDate: now.add(const Duration(days: 365)),
-      helpText: 'เลือก “วันจันทร์ของสัปดาห์ที่ 1”',
+      helpText: 'เลือก “วันเริ่มโปรแกรม”',
       confirmText: 'เพิ่มลงปฏิทิน',
       cancelText: 'ยกเลิก',
     );
     if (picked == null) return;
 
-    final monday = picked
-        .subtract(Duration(days: (picked.weekday - DateTime.monday)))
-        .copyWith(hour: 8, minute: 0);
+    // ใช้วันที่เลือกเป็นวันเริ่มจริง ๆ
+    final startDate = picked.copyWith(hour: 8, minute: 0);
 
     try {
-      // ถ้าเลือกเล่มไว้แล้ว → ใส่ลงเล่มนั้น
-      if (_calendarId != null) {
-        await cal.bulkInsertToDeviceCalendar(
-          calendarId: _calendarId,
-          week1StartDate: monday,
-          totalWeeks: widget.weeks,
-          targetKm: widget.targetKm,
-          planByWeeks: _allWeeks,
-          startHour: 8,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เพิ่มลงเล่ม: $_calendarTitle เรียบร้อย')),
-        );
-        return;
-      }
+      // โหลด id เล่มที่ผู้ใช้เลือกไว้ (จากปุ่ม “เลือก/สร้างเล่ม” ข้างบน)
+      final selectedId = _calendarId ?? await cal.loadSelectedCalendarId();
 
-      // ถ้ายังไม่ได้เลือกเล่ม → พยายามดึงเล่มเขียนได้
-      final calendars = await cal.getWritableCalendars().catchError((_) => <dynamic>[]);
+      // ลองดึงรายชื่อเล่มที่เขียนได้ดูว่ามีมั้ย
+      final calendars = await cal.getWritableCalendars().catchError(
+        (_) => <dynamic>[],
+      );
       final hasWritable = calendars.isNotEmpty;
 
       if (hasWritable) {
         await cal.bulkInsertToDeviceCalendar(
-          week1StartDate: monday,
+          calendarId: selectedId, // <<<<<<<<<< สำคัญ
+          week1StartDate: startDate,
           totalWeeks: widget.weeks,
           targetKm: widget.targetKm,
           planByWeeks: _allWeeks,
           startHour: 8,
         );
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('เพิ่มลงปฏิทินเครื่องเรียบร้อย')),
+          SnackBar(
+            content: Text(
+              'เพิ่มลงเล่ม: ${_calendarTitle.isEmpty ? (selectedId ?? "ไม่ระบุ") : _calendarTitle} เรียบร้อย',
+            ),
+          ),
         );
         return;
       }
 
-      // emulator → .ics
+      // ถ้าเขียนตรงไม่ได้ (อีมู/ไม่มีเล่ม) → สร้างไฟล์ .ics แทน
       await cal.exportTrainingPlanToICS(
-        week1StartDate: monday,
+        week1StartDate: startDate,
         totalWeeks: widget.weeks,
         targetKm: widget.targetKm,
         planByWeeks: _allWeeks,
@@ -183,20 +217,21 @@ class _ScheduleTabState extends State<ScheduleTab> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ส่งออกไฟล์ .ics เรียบร้อย (Emulator)')),
+        const SnackBar(content: Text('ส่งออกไฟล์ .ics เรียบร้อย')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ล้มเหลว: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ล้มเหลว: $e')));
     }
   }
 
   Future<void> _addTodayOnly() async {
     final monday = _mondayOf(DateTime.now());
     try {
-      final isMobile = !kIsWeb &&
+      final isMobile =
+          !kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.android ||
               defaultTargetPlatform == TargetPlatform.iOS);
 
@@ -212,8 +247,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
             startHour: 6,
           );
           if (!mounted) return;
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('บันทึกแผน “วันนี้” ลงเล่ม: $_calendarTitle')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('บันทึกแผน “วันนี้” ลงเล่ม: $_calendarTitle'),
+            ),
+          );
           return;
         }
       }
@@ -222,7 +260,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
       await cal.openGoogleCalendarImportPage();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ล้มเหลว: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ล้มเหลว: $e')));
     }
   }
 
@@ -241,7 +281,10 @@ class _ScheduleTabState extends State<ScheduleTab> {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.bookmark_added_outlined),
-                    label: Text(_calendarTitle, overflow: TextOverflow.ellipsis),
+                    label: Text(
+                      _calendarTitle,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     onPressed: _chooseOrCreateCalendar, // กดเพื่อเลือก/รีเฟรช
                   ),
                 ),
@@ -265,7 +308,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
                   child: FilledButton.icon(
                     icon: const Icon(Icons.event_available),
                     label: const Text('เพิ่มทั้งโปรแกรม (เลือกวันเริ่ม)'),
-                    onPressed: _addWholeProgramToCalendar,
+                    onPressed: () => _addWholeProgramToCalendar(context),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -287,17 +330,29 @@ class _ScheduleTabState extends State<ScheduleTab> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => setState(() => _weekIndex = (_weekIndex - 1).clamp(0, widget.weeks - 1)),
+                    onPressed: () => setState(
+                      () => _weekIndex = (_weekIndex - 1).clamp(
+                        0,
+                        widget.weeks - 1,
+                      ),
+                    ),
                     icon: const Icon(Icons.chevron_left),
                   ),
                   Expanded(
                     child: Center(
-                      child: Text('สัปดาห์ที่ ${_weekIndex + 1}',
-                          style: Theme.of(context).textTheme.titleMedium),
+                      child: Text(
+                        'สัปดาห์ที่ ${_weekIndex + 1}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
                   ),
                   IconButton(
-                    onPressed: () => setState(() => _weekIndex = (_weekIndex + 1).clamp(0, widget.weeks - 1)),
+                    onPressed: () => setState(
+                      () => _weekIndex = (_weekIndex + 1).clamp(
+                        0,
+                        widget.weeks - 1,
+                      ),
+                    ),
                     icon: const Icon(Icons.chevron_right),
                   ),
                 ],
@@ -324,21 +379,34 @@ class _ScheduleTabState extends State<ScheduleTab> {
                   children: [
                     SizedBox(
                       width: 54,
-                      child: Text(day,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      child: Text(
+                        day,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(note.isEmpty ? '-' : note, style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            note.isEmpty ? '-' : note,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              Expanded(child: _MiniCell(headline: 'ระยะทาง', value: dist)),
+                              Expanded(
+                                child: _MiniCell(
+                                  headline: 'ระยะทาง',
+                                  value: dist,
+                                ),
+                              ),
                               const SizedBox(width: 12),
-                              Expanded(child: _MiniCell(headline: 'เวลา', value: time)),
+                              Expanded(
+                                child: _MiniCell(headline: 'เวลา', value: time),
+                              ),
                             ],
                           ),
                         ],
@@ -371,14 +439,19 @@ class _MiniCell extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(headline,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(
+            headline,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
