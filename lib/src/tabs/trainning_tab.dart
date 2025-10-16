@@ -162,6 +162,10 @@ class _TrainningTabState extends State<TrainningTab> {
     );
   }
 
+ 
+ 
+ 
+ 
   Widget _buildDataCard({
     required String title,
     required String value,

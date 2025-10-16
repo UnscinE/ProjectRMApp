@@ -28,8 +28,6 @@ class _Trainning2TabState extends State<Trainning2Tab> {
   @override
   void initState() {
     super.initState();
-    _initLocationService();
-    _startSensorStreams();
   }
 
   @override
@@ -243,6 +241,34 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                               ),
                             ),
                           ),
+                        ],
+                      ),
+
+                      const Divider(height: 30, thickness: 1),
+
+                      //Date and time display
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text(
+                            "Date: ${DateTime.now().toLocal().toString().split(' ')[0]}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+
+                          Text(
+                            "Time: ${TimeOfDay.now().format(context)}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+
+                          //
                         ],
                       ),
                     ],
