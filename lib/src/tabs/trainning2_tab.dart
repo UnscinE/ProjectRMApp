@@ -250,37 +250,6 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                 ),
               ),
               const SizedBox(height: 20), // Spacer between the cards
-              //Button Card
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12), // Consistent radius
-                ),
-                elevation: 4,
-
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MyApp(),
-                      ),
-                    );
-                    print('Start button pressed!');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    // You can customize the button style here
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    backgroundColor: Colors.lightBlueAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Start',
-                    style: TextStyle(fontSize: 24, color: Colors.white),
-                  ),
-                ),
-              ),
 
               const SizedBox(height: 20), // Spacer between the cards
               // --- Card for Today Task (Implementing your design sketch) ---
@@ -377,6 +346,36 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+
+              //Button Card
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // Consistent radius
+                ),
+                elevation: 4,
+
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ScreenTwo()),
+                    );
+                    print('Start button pressed!');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    // You can customize the button style here
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    backgroundColor: Colors.lightBlueAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Train',
+                    style: TextStyle(fontSize: 24, color: Colors.white),
                   ),
                 ),
               ),
