@@ -9,10 +9,11 @@ import 'run_page.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
-import 'tabs/trainning_tab.dart';
+import 'tabs/trainning2_tab.dart';
 import 'tabs/account_tab.dart';
 
-import 'training_repo.dart';
+
+import 'training_repo.dart' as repo;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -119,7 +120,7 @@ class _HomePageState extends State<HomePage> {
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
       const CalendarTab(),
 
-      const TrainningTab(),
+      const Trainning2Tab(),
 
       AccountTab(
         email: user?.email ?? 'Runner',

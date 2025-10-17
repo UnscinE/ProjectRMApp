@@ -117,6 +117,9 @@ class _AccountTabState extends State<AccountTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_auth.currentUser == null) {
+      return const Center(child: Text('กรุณาเข้าสู่ระบบ'));
+    }
     final uid = _auth.currentUser!.uid;
 
     // ฟังการเปลี่ยนแปลง users/{uid} แบบ realtime

@@ -33,7 +33,7 @@ dependencies:
   open_filex: ^4.7.0
 
   # สำหรับ “เขียนลงปฏิทินเครื่อง”
-  device_calendar: ^4.3.3
+  
   timezone: ^0.9.4
 
   # (ตัวนี้ไม่จำเป็นแล้ว ถ้าไม่ได้ใช้ flow add_2_calendar สามารถลบได้)
