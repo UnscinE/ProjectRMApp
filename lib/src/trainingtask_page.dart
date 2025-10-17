@@ -68,6 +68,11 @@ class _ScreenTwoState extends State<ScreenTwo> {
   final List<double> _gyroMagnitudes = [];
   final int _maxDataPoints = 50; // Keep the last 50 data points
 
+  // --- NEW: Data for RAW DATA COLLECTION (สำหรับนำไป Feature Extraction ต่อ) ---
+  // รูปแบบ: { 'timestamp': int, 'x': double, 'y': double, 'z': double }
+  final List<Map<String, double>> _rawAccelData = [];
+  final List<Map<String, double>> _rawGyroData = [];
+
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroSubscription;
 
@@ -164,6 +169,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
   // --- Sensor Methods (Gyroscope and Accelerometer) ---
   void _startSensorStreams() {
+    final int startTime = DateTime.now().millisecondsSinceEpoch;
     // Accelerometer (รวมแรงโน้มถ่วง)
     _accelSubscription =
         accelerometerEventStream(
@@ -174,6 +180,18 @@ class _ScreenTwoState extends State<ScreenTwo> {
           final double totalForce = sqrt(
             event.x * event.x + event.y * event.y + event.z * event.z,
           );
+
+          final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
+
+        _rawAccelData.add({
+        'Time (s)': currentTime,
+        'accelerometer_x': event.x,
+        'accelerometer_y': event.y,
+        'accelerometer_z': event.z,
+      });
+
+
+// 2. อัปเดต UI
 
           setState(() {
             _accelerometerData = Vector3(event.x, event.y, event.z);
@@ -199,6 +217,18 @@ class _ScreenTwoState extends State<ScreenTwo> {
             event.x * event.x + event.y * event.y + event.z * event.z,
           );
 
+
+final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0; // Time in seconds
+
+      // 1. เก็บข้อมูลดิบสำหรับ Feature Extraction
+      _rawGyroData.add({
+        'Time (s)': currentTime,
+        'gyroscope_x': event.x,
+        'gyroscope_y': event.y,
+        'gyroscope_z': event.z,
+      });
+
+// 2. อัปเดต UI
           setState(() {
             _gyroscopeData = Vector3(event.x, event.y, event.z);
 
@@ -281,15 +311,54 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   void _startTraining() {
+    // รีเซ็ตข้อมูลก่อนเริ่มใหม่
+    _rawAccelData.clear();
+    _rawGyroData.clear();
+    _totalDistance = 0.0;
+    _lastPosition = null;
+    _distance = 0.0;
+    _secs = 0; // ต้องรีเซ็ตนาฬิกา
+    
     _isTrainning = true;
+    setState(() {
+      _statusMessage = 'Training in progress...';
+    });
     print('🏃 Training Started!');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Training started!')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Training started!')));
     _start_Stopwatch();
     _startSensorStreams();
     _initLocationService();
   }
+
+// --- NEW: Stop Training Method (สำหรับหยุดเซสชันและดูข้อมูล) ---
+  void _stopTraining() {
+    _isTrainning = false;
+    _stop_Stopwatch();
+    _accelSubscription?.cancel();
+    _gyroSubscription?.cancel();
+    _locationSubscription?.cancel();
+    
+    print('🛑 Training Stopped!');
+    print('Total Accelerometer Samples: ${_rawAccelData.length}');
+    print('Total Gyroscope Samples: ${_rawGyroData.length}');
+    
+    // **จุดนี้คือจุดที่สามารถนำ _rawAccelData และ _rawGyroData ไปบันทึกไฟล์ CSV**
+    // (ต้องมีการใช้แพ็กเกจเช่น path_provider และ dart:io เพื่อบันทึกไฟล์จริง)
+    // ตัวอย่างการแสดงข้อมูลที่บันทึก
+    // final String csvContent = convertDataToCsv(); 
+    // print(csvContent);
+    
+    // รีเซ็ตข้อมูลดิบหลังจบเซสชัน
+    _rawAccelData.clear();
+    _rawGyroData.clear();
+    
+    setState(() {
+      _statusMessage = 'Training session ended.';
+    });
+  }
+
+
+
 
   // --- NEW: Magnitude Chart Widget (Placeholder/Simplified for Fl-Chart) ---
   Widget _buildMagnitudeChart({
@@ -417,234 +486,234 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   // Existing build method...
-  @override
+ @override
   Widget build(BuildContext context) {
-    final double currentProgress = _calculatePercentage();
+      final double currentProgress = _calculatePercentage();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Training Details'),
-        backgroundColor: const Color.fromARGB(255, 233, 233, 233),
-      ),
-      backgroundColor: const Color.fromARGB(255, 252, 252, 252),
-      body: Stack(
-        children: [
-          // ===== เนื้อหาหลัก =====
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ... (Training Progress Card remains the same)
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    elevation: 4,
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _runningType,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Training Progress',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 10),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: currentProgress,
-                              minHeight: 12,
-                              backgroundColor: Colors.grey[300],
-                              valueColor: const AlwaysStoppedAnimation(
-                                Colors.blue,
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Training Details'),
+          backgroundColor: const Color.fromARGB(255, 233, 233, 233),
+        ),
+        backgroundColor: const Color.fromARGB(255, 252, 252, 252),
+        body: Stack(
+          children: [
+            // ===== เนื้อหาหลัก =====
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ... (Training Progress Card เดิม)
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      elevation: 4,
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _runningType,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${(currentProgress * 100).toStringAsFixed(0)}%',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const Divider(height: 24, thickness: 1),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: 250,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE3F2FD),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildDetailRow(
-                                        'Time',
-                                        _time,
-                                        _targetSeconds.toString(),
-                                      ),
-                                      _buildDetailRow(
-                                        'Distance',
-                                        _distance.toStringAsFixed(2),
-                                        '${_distance.toStringAsFixed(2)} / 500 km',
-                                      ),
-                                    ],
-                                  ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Training Progress',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: currentProgress,
+                                minHeight: 12,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: const AlwaysStoppedAnimation(
+                                  Colors.blue,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Container(
-                                  height: 250,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE3F2FD),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildDetailRow(
-                                        'Activity',
-                                        _activity,
-                                        '',
-                                      ),
-                                      _buildDetailRow(
-                                        'Speed',
-                                        '$_speed km/hr',
-                                        '',
-                                      ),
-                                    ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${(currentProgress * 100).toStringAsFixed(0)}%',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const Divider(height: 24, thickness: 1),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    height: 250,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE3F2FD),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _buildDetailRow(
+                                          'Time',
+                                          _time,
+                                          _targetSeconds.toString(),
+                                        ),
+                                        _buildDetailRow(
+                                          'Distance',
+                                          _distance.toStringAsFixed(2),
+                                          '${_distance.toStringAsFixed(2)} / 500 km',
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ===== SENSOR DATA CARDS (NOW GRAPHS) =====
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 250,
-                              child: _buildMagnitudeChart(
-                                title: 'Accel. Magnitude (m/s²)',
-                                dataPoints: _accelMagnitudes,
-                                unit: 'm/s²',
-                                icon: Icons.speed_rounded, // Changed icon
-                                color: Colors.green,
-                              ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Container(
+                                    height: 250,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE3F2FD),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _buildDetailRow(
+                                          'Activity',
+                                          _activity,
+                                          '',
+                                        ),
+                                        _buildDetailRow(
+                                          'Speed',
+                                          '$_speed km/hr',
+                                          '',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: SizedBox(
-                              height: 250,
-                              child: _buildMagnitudeChart(
-                                title: 'Gyro. Magnitude (rad/s)',
-                                dataPoints: _gyroMagnitudes,
-                                unit: 'rad/s',
-                                icon:
-                                    Icons.rotate_right_rounded, // Changed icon
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ===== ปุ่ม Start =====
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
-                    child: ElevatedButton(
-                      onPressed: _startCountdown,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        backgroundColor: Colors.lightBlueAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          ],
                         ),
                       ),
-                      child: const Text(
-                        'Start',
-                        style: TextStyle(fontSize: 24, color: Colors.white),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // ===== SENSOR DATA CARDS (NOW GRAPHS) =====
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 250,
+                                child: _buildMagnitudeChart(
+                                  title: 'Accel. Magnitude (m/s²)',
+                                  dataPoints: _accelMagnitudes,
+                                  unit: 'm/s²',
+                                  icon: Icons.speed_rounded,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: SizedBox(
+                                height: 250,
+                                child: _buildMagnitudeChart(
+                                  title: 'Gyro. Magnitude (rad/s)',
+                                  dataPoints: _gyroMagnitudes,
+                                  unit: 'rad/s',
+                                  icon: Icons.rotate_right_rounded,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
 
-          // ===== Overlay Countdown remains the same =====
-          if (_showOverlay)
-            Container(
-              color: Colors.black54,
-              child: Center(
-                child: Text(
-                  _countdown > 0 ? '$_countdown' : 'GO!',
-                  style: const TextStyle(
-                    fontSize: 100,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 10,
-                        color: Colors.blueAccent,
-                        offset: Offset(2, 2),
+                    const SizedBox(height: 24),
+
+                    // ===== ปุ่ม Start/Stop (ปรับปรุง) =====
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
+                      elevation: 4,
+                      child: ElevatedButton(
+                        onPressed: _isTrainning ? _stopTraining : _startCountdown,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          backgroundColor: _isTrainning
+                              ? Colors.redAccent
+                              : Colors.lightBlueAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          _isTrainning ? 'STOP' : 'Start',
+                          style:
+                              const TextStyle(fontSize: 24, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
 
+            // ===== Overlay Countdown remains the same =====
+            if (_showOverlay)
+              Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Text(
+                    _countdown > 0 ? '$_countdown' : 'GO!',
+                    style: const TextStyle(
+                      fontSize: 100,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 10,
+                          color: Colors.blueAccent,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
   // UI Build row for time, distance, activity, speed (remains the same)
   Widget _buildDetailRow(String title, String value, String subValue) {
     return Padding(
