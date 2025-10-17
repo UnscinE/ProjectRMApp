@@ -1,15 +1,25 @@
-// lib/src/auth_gate.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'home_page.dart';
+import 'login_page.dart';
+import 'distance_select_page.dart';
+import 'duration_select_page.dart';
 import 'training_repo.dart';
-
-// <-- ถ้าไฟล์นี้อยู่ lib/ ให้ใส่ '../training_repo.dart' (จาก src/ ขึ้นไป 1 ระดับ)
-
-import 'home_page.dart';        // หน้า main หลังล็อกอิน
-import 'login_page.dart';       // หน้าเข้าสู่ระบบของคุณ
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
+  Future<(int?, int?)> _loadUserPrefs(String uid) async {
+    try {
+      final data = await TrainingRepo.fetchPrefs(uid);
+      final km = data?['target_km'] as int?;
+      final weeks = data?['training_weeks'] as int?;
+      return (km, weeks);
+    } on FirebaseException catch (_) {
+      // ถ้าอ่านไม่ได้ ก็ให้เลือกใหม่
+      return (null, null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,21 +29,21 @@ class AuthGate extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-
         final user = snap.data;
-        if (user == null) {
-          return const LoginPage();
-        }
+        if (user == null) return const LoginPage();
 
-        // ✅ สร้างเอกสาร users/{uid} ครั้งแรกถ้ายังไม่มี
-        // ทำใน Future.microtask เพื่อไม่บล็อค build
-        Future.microtask(() => TrainingRepo.ensureUserDocExists(
-              uid: user.uid,
-              displayName: user.displayName,
-              email: user.email,
-            ));
-
-        return const HomePage(); // ไปหน้าโฮมของคุณ
+        return FutureBuilder<(int?, int?)>(
+          future: _loadUserPrefs(user.uid),
+          builder: (context, prefSnap) {
+            if (prefSnap.connectionState != ConnectionState.done) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            final (km, weeks) = prefSnap.data!;
+            if (km == null) return const DistanceSelectPage();       // ยังไม่เลือกระยะทาง
+            if (weeks == null) return const DurationSelectPage();     // ยังไม่เลือกสัปดาห์
+            return HomePage();      // ครบ → Home
+          },
+        );
       },
     );
   }

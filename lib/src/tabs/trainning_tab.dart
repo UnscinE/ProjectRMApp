@@ -4,15 +4,12 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:async';
 import 'dart:math';
 
-
 class TrainningTab extends StatefulWidget {
   const TrainningTab({super.key});
-
 
   @override
   State<TrainningTab> createState() => _TrainningTabState();
 }
-
 
 class _TrainningTabState extends State<TrainningTab> {
   // --- GPS/Speed State ---
@@ -20,16 +17,13 @@ class _TrainningTabState extends State<TrainningTab> {
   final Location _location = Location();
   StreamSubscription<LocationData>? _locationSubscription;
 
-
   // --- Sensor State ---
   Vector3 _accelerometerData = const Vector3(0, 0, 0);
   Vector3 _gyroscopeData = const Vector3(0, 0, 0);
   double _gForce = 0.0; // g value (≈ total acceleration / 9.8)
 
-
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroSubscription;
-
 
   @override
   void initState() {
@@ -37,7 +31,6 @@ class _TrainningTabState extends State<TrainningTab> {
     _initLocationService();
     _startSensorStreams();
   }
-
 
   @override
   void dispose() {
@@ -47,13 +40,11 @@ class _TrainningTabState extends State<TrainningTab> {
     super.dispose();
   }
 
-
   // --------------------------------------------------------------------------
   // --- GPS/Location Methods (for Speed Calculation) ---
   Future<void> _initLocationService() async {
     bool serviceEnabled;
     PermissionStatus permissionGranted;
-
 
     // 1. ตรวจสอบว่าเปิด location service หรือยัง
     serviceEnabled = await _location.serviceEnabled();
@@ -62,7 +53,6 @@ class _TrainningTabState extends State<TrainningTab> {
       if (!serviceEnabled) return;
     }
 
-
     // 2. ขอ permission
     permissionGranted = await _location.hasPermission();
     if (permissionGranted == PermissionStatus.denied) {
@@ -70,14 +60,12 @@ class _TrainningTabState extends State<TrainningTab> {
       if (permissionGranted != PermissionStatus.granted) return;
     }
 
-
     // 3. ตั้งค่า location update ให้แม่นยำ
     await _location.changeSettings(
       accuracy: LocationAccuracy.high,
       interval: 1000, // update ทุก 1 วินาที
       distanceFilter: 0,
     );
-
 
     // 4. เริ่มรับข้อมูล location
     _locationSubscription = _location.onLocationChanged.listen((LocationData data) {
@@ -88,7 +76,6 @@ class _TrainningTabState extends State<TrainningTab> {
       debugPrint('Speed: ${data.speed} m/s, Lat: ${data.latitude}, Lng: ${data.longitude}');
     });
   }
-
 
   // --------------------------------------------------------------------------
   // --- Sensor Methods (Gyroscope and Accelerometer) ---
@@ -108,7 +95,6 @@ class _TrainningTabState extends State<TrainningTab> {
       });
     });
 
-
     // Gyroscope
     _gyroSubscription = gyroscopeEventStream(
       samplingPeriod: const Duration(milliseconds: 100),
@@ -120,13 +106,11 @@ class _TrainningTabState extends State<TrainningTab> {
     });
   }
 
-
   // --------------------------------------------------------------------------
   // --- UI Build Method ---
   @override
   Widget build(BuildContext context) {
     final double speedKmh = _currentSpeed * 3.6; // แปลงจาก m/s เป็น km/h
-
 
     return Scaffold(
       appBar: AppBar(title: const Text('Training Data')),
@@ -178,6 +162,10 @@ class _TrainningTabState extends State<TrainningTab> {
     );
   }
 
+ 
+ 
+ 
+ 
   Widget _buildDataCard({
     required String title,
     required String value,
@@ -215,7 +203,6 @@ class _TrainningTabState extends State<TrainningTab> {
   }
 }
 
-
 // Simple class to hold sensor data
 class Vector3 {
   final double x;
@@ -223,6 +210,3 @@ class Vector3 {
   final double z;
   const Vector3(this.x, this.y, this.z);
 }
-
-
-

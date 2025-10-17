@@ -1,16 +1,13 @@
-// lib/src/home_page.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'run_page.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
 import 'tabs/trainning_tab.dart';
 import 'tabs/account_tab.dart';
+import 'tabs/trainning2_tab.dart';
 
 import 'training_repo.dart';
 
@@ -27,52 +24,33 @@ class _HomePageState extends State<HomePage> {
   int trainingWeeks = 0;
   bool isLoading = true;
 
-  StreamSubscription? _userDocSub;
-
   @override
   void initState() {
     super.initState();
     _loadData();
-    _listenUserPrefs(); // ✅ ถ้ามี user จะฟังค่า real-time
-  }
-
-  @override
-  void dispose() {
-    _userDocSub?.cancel();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
+      // ผู้ใช้ล็อกอิน
       final uid = user.uid;
-
-      // ✅ สร้างเอกสารครั้งแรกถ้ายังไม่มี (สำคัญ!)
-      await repo.TrainingRepo.ensureUserDocExists(
-        uid: uid,
-        displayName: user.displayName,
-        email: user.email,
-      );
-
-      // โหลดค่าเป้าหมายเบื้องต้นจาก Firestore (one-shot)
-      final data = await repo.TrainingRepo.fetchPrefs(uid);
+      final data = await TrainingRepo.fetchPrefs(uid);
       final km = (data?['target_km'] as int?) ?? 5;
       final weeks = (data?['training_weeks'] as int?) ?? 4;
 
-      if (!mounted) return;
       setState(() {
         targetKm = km;
         trainingWeeks = weeks;
-        isLoading = false;
+        isLoading = false; // << เพิ่มบรรทัดนี้
       });
     } else {
-      // ยังไม่ล็อกอิน → ใช้ค่าที่เก็บในเครื่องไว้ก่อน
+      // ผู้ใช้ guest
       final prefs = await SharedPreferences.getInstance();
       final km = prefs.getInt('target_km') ?? 5;
       final weeks = prefs.getInt('training_weeks') ?? 4;
 
-      if (!mounted) return;
       setState(() {
         targetKm = km;
         trainingWeeks = weeks;
@@ -81,31 +59,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _listenUserPrefs() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    _userDocSub?.cancel();
-    _userDocSub = repo.TrainingRepo.userDocStream(user.uid).listen((snap) {
-      final data = snap.data();
-      if (data == null) return;
-
-      final km = (data['target_km'] as int?) ?? targetKm;
-      final weeks = (data['training_weeks'] as int?) ?? trainingWeeks;
-
-      if (!mounted) return;
-      setState(() {
-        targetKm = km;
-        trainingWeeks = weeks;
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    final List<Widget> tabs = [
+    final tabs = [
       DashboardTab(
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
@@ -116,21 +74,20 @@ class _HomePageState extends State<HomePage> {
         },
         email: user?.email ?? 'Runner',
       ),
+
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
+
       const CalendarTab(),
 
-      const TrainningTab(),
+      const Trainning2Tab(),
 
       AccountTab(
         email: user?.email ?? 'Runner',
-        displayName: user?.displayName,
         onSignOut: () async {
           await FirebaseAuth.instance.signOut();
-          _userDocSub?.cancel();
           if (mounted) {
             setState(() {
-              _index = 0;
-              // ค่าบนหน้า Home กลับมาใช้ของ local เผื่อยังอยู่ในแอป
+              _index = 0; // กลับไปหน้า Home
             });
           }
         },
