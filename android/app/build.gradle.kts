@@ -27,6 +27,7 @@ android {
         applicationId = "com.example.rmapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        minSdk = 26
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -41,6 +42,18 @@ android {
         }
     }
 }
+
+
+dependencies {
+    // ... (dependencies อื่น ๆ ของคุณ)
+
+    // **เพิ่มบรรทัดนี้เพื่อรองรับ Select TF Ops**
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.15.0") // ใช้เวอร์ชัน TFLite ที่เข้ากันได้
+
+    // หากคุณมีการเรียกใช้ TFLite อื่นๆ
+    // implementation 'org.tensorflow:tensorflow-lite:2.15.0' 
+}
+
 
 flutter {
     source = "../.."

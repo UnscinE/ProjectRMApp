@@ -39,6 +39,10 @@ dependencies:
   # (ตัวนี้ไม่จำเป็นแล้ว ถ้าไม่ได้ใช้ flow add_2_calendar สามารถลบได้)
   add_2_calendar: ^3.0.1
 
+# ใช้เรียก model มาใช้งาน
+  tflite_flutter: ^0.11.0
+  #tflite_flutter_plus: ^0.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -46,3 +50,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/models/lstm_activity_model_float32.tflite
