@@ -52,3 +52,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/lstm_activity_model_float32.tflite
+    - assets/models/labels.txt
+    - assets/models/thai_sign_model.tflite

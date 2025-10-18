@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'package:flutter/material.dart';
 import 'package:location/location.dart' hide LocationAccuracy;
 import 'package:geolocator/geolocator.dart';
@@ -6,7 +7,9 @@ import 'package:rmapp/src/modelhandle_backend.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'training_repo.dart';
 // Note: To use the chart, you must add 'fl_chart: ^0.63.0' (or latest)
 // to your pubspec.yaml and run 'flutter pub get'.
 // import 'package:fl_chart/fl_chart.dart'; // <<< Required for actual chart implementation
@@ -29,8 +32,9 @@ class _ScreenTwoState extends State<ScreenTwo> {
   // Existing State Variables...
   //String _time = '0.00';
 
-HarModelPredictor _predictor = HarModelPredictor();
-
+  HarModelPredictor _predictor = HarModelPredictor();
+  final double _goalDistanceKm = 500.0;
+  String? _currentProgramId;
   double _distance = 0;
   String _activity = 'getting data';
   String _speed = '0.00';
@@ -84,6 +88,7 @@ HarModelPredictor _predictor = HarModelPredictor();
   void initState() {
     super.initState();
     _predictor.loadModel();
+    _loadProgramId();
   }
 
   @override
@@ -172,6 +177,91 @@ HarModelPredictor _predictor = HarModelPredictor();
         });
   }
 
+  Future<void> _recordData() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    // ตรวจสอบ User และ Program ID
+    if (user == null || _currentProgramId == null) {
+      print(
+        "❌ Cannot record data: User not logged in or Program ID not found.",
+      );
+      return;
+    }
+
+    // 1. คำนวณสถิติที่จำเป็น
+    final String userId = user.uid;
+    // รูปแบบ Document ID: "DD-MM-YYYY" (ใช้ intl.dart)
+    final String dateKey =
+        DateTime.now().day.toString().padLeft(2, '0') +
+        '-' +
+        DateTime.now().month.toString().padLeft(2, '0') +
+        '-' +
+        DateTime.now().year.toString();
+
+    final double avgSpeedKph =
+        (_totalDistance / _secs) * 3.6; // คำนวณความเร็วเฉลี่ยรวม (m/s -> km/hr)
+    final Duration totalDuration = Duration(seconds: _secs);
+
+    // คำนวณ Progress Bar (เทียบกับ Goal Distance)
+    // NOTE: ควรหา Total Distance สะสมก่อนหน้ามาบวกด้วย
+    final double totalDistanceKm = _totalDistance / 1000.0;
+    final double progressPercent = (totalDistanceKm / _goalDistanceKm) * 100;
+    final int progressBarValue = progressPercent.clamp(0, 100).round();
+
+    // แปลง Duration เป็น String (HH:MM:SS)
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String timeString =
+        "${twoDigits(totalDuration.inHours)}:${twoDigits(totalDuration.inMinutes.remainder(60))}:${twoDigits(totalDuration.inSeconds.remainder(60))}";
+
+    // 2. กำหนด Reference ของ Firestore
+    final trainingRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('Program')
+        .doc(_currentProgramId!) // ใช้ Program ID ที่โหลดมา
+        .collection('Training')
+        .doc(dateKey);
+
+    // 3. เตรียมข้อมูลที่จะบันทึก
+    final Map<String, dynamic> trainingData = {
+      'date': Timestamp.now(),
+      'activity': _activity, // กิจกรรมสุดท้ายที่ทำนายได้
+      'distance_km': totalDistanceKm,
+      'duration_s': _secs,
+      'duration_display': timeString,
+      'average_speed_kph': avgSpeedKph.toStringAsFixed(2),
+      'progress_bar_percent': progressBarValue,
+    };
+
+    // 4. บันทึกข้อมูล
+    try {
+      await trainingRef.set(trainingData, SetOptions(merge: true));
+      print(
+        '✅ Training data recorded to $_currentProgramId/$dateKey successfully.',
+      );
+    } catch (e) {
+      print('❌ Error recording training data: $e');
+    }
+  }
+
+  Future<void> _loadProgramId() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // เรียกฟังก์ชันดึง Program ID ปัจจุบัน
+    final programId = await TrainingRepo.fetchCurrentProgramId(user.uid);
+
+    setState(() {
+      _currentProgramId = programId?.first;
+    });
+
+    if (_currentProgramId != null) {
+      print("✅ Program ID ล่าสุดที่ใช้: $_currentProgramId");
+    } else {
+      print("⚠️ ไม่พบ Program ID ปัจจุบันสำหรับผู้ใช้นี้");
+    }
+  }
+
   // --- Sensor Methods (Gyroscope and Accelerometer) ---
   void _startSensorStreams() {
     final int startTime = DateTime.now().millisecondsSinceEpoch;
@@ -186,17 +276,17 @@ HarModelPredictor _predictor = HarModelPredictor();
             event.x * event.x + event.y * event.y + event.z * event.z,
           );
 
-          final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
+          final double currentTime =
+              (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
 
-        _rawAccelData.add({
-        'Time (s)': currentTime,
-        'accelerometer_x': event.x,
-        'accelerometer_y': event.y,
-        'accelerometer_z': event.z,
-      });
+          _rawAccelData.add({
+            'Time (s)': currentTime,
+            'accelerometer_x': event.x,
+            'accelerometer_y': event.y,
+            'accelerometer_z': event.z,
+          });
 
-
-// 2. อัปเดต UI
+          // 2. อัปเดต UI
 
           setState(() {
             _accelerometerData = Vector3(event.x, event.y, event.z);
@@ -222,18 +312,19 @@ HarModelPredictor _predictor = HarModelPredictor();
             event.x * event.x + event.y * event.y + event.z * event.z,
           );
 
+          final double currentTime =
+              (DateTime.now().millisecondsSinceEpoch - startTime) /
+              1000.0; // Time in seconds
 
-final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0; // Time in seconds
+          // 1. เก็บข้อมูลดิบสำหรับ Feature Extraction
+          _rawGyroData.add({
+            'Time (s)': currentTime,
+            'gyroscope_x': event.x,
+            'gyroscope_y': event.y,
+            'gyroscope_z': event.z,
+          });
 
-      // 1. เก็บข้อมูลดิบสำหรับ Feature Extraction
-      _rawGyroData.add({
-        'Time (s)': currentTime,
-        'gyroscope_x': event.x,
-        'gyroscope_y': event.y,
-        'gyroscope_z': event.z,
-      });
-
-// 2. อัปเดต UI
+          // 2. อัปเดต UI
           setState(() {
             _gyroscopeData = Vector3(event.x, event.y, event.z);
 
@@ -326,20 +417,20 @@ final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) /
 
     // เริ่ม Sensor Streams (100 Hz)
     _startSensorStreams();
-    
+
     Timer.periodic(const Duration(milliseconds: 500), (t) {
-        if (!_isTrainning) {
-            t.cancel();
-            return;
-        }
-        
-        final features = extractFeaturesDart(_rawAccelData, _rawGyroData);
-        if (features.isNotEmpty) {
-            final prediction = _predictor.predict(features);
-            setState(() {
-                _activity = prediction; // อัปเดต UI ด้วยผลการทำนาย
-            });
-        }
+      if (!_isTrainning) {
+        t.cancel();
+        return;
+      }
+
+      final features = extractFeaturesDart(_rawAccelData, _rawGyroData);
+      if (features.isNotEmpty) {
+        final prediction = _predictor.predict(features);
+        setState(() {
+          _activity = prediction; // อัปเดต UI ด้วยผลการทำนาย
+        });
+      }
     });
 
     _isTrainning = true;
@@ -347,124 +438,150 @@ final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) /
       _statusMessage = 'Training in progress...';
     });
     print('🏃 Training Started!');
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Training started!')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Training started!')));
     _start_Stopwatch();
     _initLocationService();
   }
 
-// --- NEW: Stop Training Method (สำหรับหยุดเซสชันและดูข้อมูล) ---
+  // --- NEW: Stop Training Method (สำหรับหยุดเซสชันและดูข้อมูล) ---
   void _stopTraining() {
     _isTrainning = false;
     _stop_Stopwatch();
     _accelSubscription?.cancel();
     _gyroSubscription?.cancel();
     _locationSubscription?.cancel();
-    
+
     print('🛑 Training Stopped!');
     print('Total Accelerometer Samples: ${_rawAccelData.length}');
     print('Total Gyroscope Samples: ${_rawGyroData.length}');
-    
+
     // **จุดนี้คือจุดที่สามารถนำ _rawAccelData และ _rawGyroData ไปบันทึกไฟล์ CSV**
     // (ต้องมีการใช้แพ็กเกจเช่น path_provider และ dart:io เพื่อบันทึกไฟล์จริง)
     // ตัวอย่างการแสดงข้อมูลที่บันทึก
-    // final String csvContent = convertDataToCsv(); 
+    // final String csvContent = convertDataToCsv();
     // print(csvContent);
-    
+
     // รีเซ็ตข้อมูลดิบหลังจบเซสชัน
     _rawAccelData.clear();
     _rawGyroData.clear();
-    
+
+    _recordData();
     setState(() {
       _statusMessage = 'Training session ended.';
     });
   }
 
-// สำหรับการคำนวณ Skewness และ Kurtosis แบบง่าย (ตัวอย่างเท่านั้น)
-double calculateMean(List<double> values) {
-  if (values.isEmpty) return 0.0;
-  return values.reduce((a, b) => a + b) / values.length;
-}
-
-double calculateStdDev(List<double> values, double mean) {
-  if (values.length < 2) return 0.0;
-  final variance = values.map((x) => pow(x - mean, 2)).reduce((a, b) => a + b) / (values.length - 1);
-  return sqrt(variance);
-}
-
-// Skewness: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu3 / Sigma^3)
-double calculateSkewness(List<double> values, double mean, double std) {
-  if (std == 0.0) return 0.0;
-  double sum = 0.0;
-  for (var x in values) {
-    sum += pow((x - mean) / std, 3);
-  }
-  return sum / values.length; // Approximate sample skewness (Mu3)
-}
-
-// Kurtosis: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu4 / Sigma^4 - 3)
-double calculateKurtosis(List<double> values, double mean, double std) {
-  if (std == 0.0) return 0.0;
-  double sum = 0.0;
-  for (var x in values) {
-    sum += pow((x - mean) / std, 4);
-  }
-  return (sum / values.length) - 3.0; // Sample kurtosis (Excess Kurtosis)
-}
-
-// ฟังก์ชันสำหรับดึง Features ทั้งหมด (เทียบเท่าโค้ด Python ของคุณ)
-Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, List<Map<String, double>> gyroData) {
-  const windowSize = 100; // 1 วินาที
-  
-  if (accelData.length < windowSize || gyroData.length < windowSize) {
-    return {}; // ยังไม่ครบ window
+  // สำหรับการคำนวณ Skewness และ Kurtosis แบบง่าย (ตัวอย่างเท่านั้น)
+  double calculateMean(List<double> values) {
+    if (values.isEmpty) return 0.0;
+    return values.reduce((a, b) => a + b) / values.length;
   }
 
-  // ใช้ข้อมูล 100 samples ล่าสุด (The window)
-  final accelWindow = accelData.sublist(accelData.length - windowSize);
-  final gyroWindow = gyroData.sublist(gyroData.length - windowSize);
-  
-  // 1. เตรียม lists ของแกน
-  final ax = accelWindow.map((d) => d['accelerometer_x']!).toList();
-  final ay = accelWindow.map((d) => d['accelerometer_y']!).toList();
-  final az = accelWindow.map((d) => d['accelerometer_z']!).toList();
-  final gx = gyroWindow.map((d) => d['gyroscope_x']!).toList();
-  final gy = gyroWindow.map((d) => d['gyroscope_y']!).toList();
-  final gz = gyroWindow.map((d) => d['gyroscope_z']!).toList();
-
-  // 2. คำนวณ Magnitude (สำหรับ Magnitude Mean)
-  final accelMag = accelWindow.map((d) => sqrt(pow(d['accelerometer_x']!, 2) + pow(d['accelerometer_y']!, 2) + pow(d['accelerometer_z']!, 2))).toList();
-  final gyroMag = gyroWindow.map((d) => sqrt(pow(d['gyroscope_x']!, 2) + pow(d['gyroscope_y']!, 2) + pow(d['gyroscope_z']!, 2))).toList();
-
-  final Map<String, List<double>> dataStreams = {
-    'accelerometer_x': ax, 'accelerometer_y': ay, 'accelerometer_z': az,
-    'gyroscope_x': gx, 'gyroscope_y': gy, 'gyroscope_z': gz,
-  };
-
-  final features = <String, double>{};
-
-  // 3. คำนวณสถิติหลัก
-  for (var entry in dataStreams.entries) {
-    final col = entry.key;
-    final list = entry.value;
-    final mean = calculateMean(list);
-    final std = calculateStdDev(list, mean);
-
-    features['${col}_mean'] = mean;
-    features['${col}_std'] = std;
-    features['${col}_max'] = list.reduce(max);
-    features['${col}_min'] = list.reduce(min);
-    features['${col}_skew'] = calculateSkewness(list, mean, std);
-    features['${col}_kurtosis'] = calculateKurtosis(list, mean, std);
+  double calculateStdDev(List<double> values, double mean) {
+    if (values.length < 2) return 0.0;
+    final variance =
+        values.map((x) => pow(x - mean, 2)).reduce((a, b) => a + b) /
+        (values.length - 1);
+    return sqrt(variance);
   }
 
-  // 4. คำนวณ Magnitude Mean
-  features['acceleration_magnitude_mean'] = calculateMean(accelMag);
-  features['gyroscope_magnitude_mean'] = calculateMean(gyroMag);
-  
-  return features;
-}
+  // Skewness: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu3 / Sigma^3)
+  double calculateSkewness(List<double> values, double mean, double std) {
+    if (std == 0.0) return 0.0;
+    double sum = 0.0;
+    for (var x in values) {
+      sum += pow((x - mean) / std, 3);
+    }
+    return sum / values.length; // Approximate sample skewness (Mu3)
+  }
 
+  // Kurtosis: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu4 / Sigma^4 - 3)
+  double calculateKurtosis(List<double> values, double mean, double std) {
+    if (std == 0.0) return 0.0;
+    double sum = 0.0;
+    for (var x in values) {
+      sum += pow((x - mean) / std, 4);
+    }
+    return (sum / values.length) - 3.0; // Sample kurtosis (Excess Kurtosis)
+  }
 
+  // ฟังก์ชันสำหรับดึง Features ทั้งหมด (เทียบเท่าโค้ด Python ของคุณ)
+  Map<String, double> extractFeaturesDart(
+    List<Map<String, double>> accelData,
+    List<Map<String, double>> gyroData,
+  ) {
+    const windowSize = 100; // 1 วินาที
+
+    if (accelData.length < windowSize || gyroData.length < windowSize) {
+      return {}; // ยังไม่ครบ window
+    }
+
+    // ใช้ข้อมูล 100 samples ล่าสุด (The window)
+    final accelWindow = accelData.sublist(accelData.length - windowSize);
+    final gyroWindow = gyroData.sublist(gyroData.length - windowSize);
+
+    // 1. เตรียม lists ของแกน
+    final ax = accelWindow.map((d) => d['accelerometer_x']!).toList();
+    final ay = accelWindow.map((d) => d['accelerometer_y']!).toList();
+    final az = accelWindow.map((d) => d['accelerometer_z']!).toList();
+    final gx = gyroWindow.map((d) => d['gyroscope_x']!).toList();
+    final gy = gyroWindow.map((d) => d['gyroscope_y']!).toList();
+    final gz = gyroWindow.map((d) => d['gyroscope_z']!).toList();
+
+    // 2. คำนวณ Magnitude (สำหรับ Magnitude Mean)
+    final accelMag = accelWindow
+        .map(
+          (d) => sqrt(
+            pow(d['accelerometer_x']!, 2) +
+                pow(d['accelerometer_y']!, 2) +
+                pow(d['accelerometer_z']!, 2),
+          ),
+        )
+        .toList();
+    final gyroMag = gyroWindow
+        .map(
+          (d) => sqrt(
+            pow(d['gyroscope_x']!, 2) +
+                pow(d['gyroscope_y']!, 2) +
+                pow(d['gyroscope_z']!, 2),
+          ),
+        )
+        .toList();
+
+    final Map<String, List<double>> dataStreams = {
+      'accelerometer_x': ax,
+      'accelerometer_y': ay,
+      'accelerometer_z': az,
+      'gyroscope_x': gx,
+      'gyroscope_y': gy,
+      'gyroscope_z': gz,
+    };
+
+    final features = <String, double>{};
+
+    // 3. คำนวณสถิติหลัก
+    for (var entry in dataStreams.entries) {
+      final col = entry.key;
+      final list = entry.value;
+      final mean = calculateMean(list);
+      final std = calculateStdDev(list, mean);
+
+      features['${col}_mean'] = mean;
+      features['${col}_std'] = std;
+      features['${col}_max'] = list.reduce(max);
+      features['${col}_min'] = list.reduce(min);
+      features['${col}_skew'] = calculateSkewness(list, mean, std);
+      features['${col}_kurtosis'] = calculateKurtosis(list, mean, std);
+    }
+
+    // 4. คำนวณ Magnitude Mean
+    features['acceleration_magnitude_mean'] = calculateMean(accelMag);
+    features['gyroscope_magnitude_mean'] = calculateMean(gyroMag);
+
+    return features;
+  }
 
   // --- NEW: Magnitude Chart Widget (Placeholder/Simplified for Fl-Chart) ---
   Widget _buildMagnitudeChart({
@@ -506,7 +623,7 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
@@ -592,17 +709,19 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
   }
 
   // Existing build method...
- @override
+  @override
   Widget build(BuildContext context) {
-      final double currentProgress = _calculatePercentage();
+    final double currentProgress = _calculatePercentage();
 
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Training Details'),
-          backgroundColor: const Color.fromARGB(255, 233, 233, 233),
-        ),
-        backgroundColor: const Color.fromARGB(255, 252, 252, 252),
-        body: Stack(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Training Details'),
+        backgroundColor: const Color.fromARGB(255, 233, 233, 233),
+      ),
+      backgroundColor: const Color.fromARGB(255, 252, 252, 252),
+
+      body: SingleChildScrollView(
+        child: Stack(
           children: [
             // ===== เนื้อหาหลัก =====
             Center(
@@ -672,7 +791,8 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         _buildDetailRow(
                                           'Time',
@@ -697,7 +817,8 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         _buildDetailRow(
                                           'Activity',
@@ -729,7 +850,7 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                       ),
                       elevation: 4,
                       child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(16),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
@@ -737,7 +858,7 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                               child: SizedBox(
                                 height: 250,
                                 child: _buildMagnitudeChart(
-                                  title: 'Accel. Magnitude (m/s²)',
+                                  title: 'Accel. Magnitude',
                                   dataPoints: _accelMagnitudes,
                                   unit: 'm/s²',
                                   icon: Icons.speed_rounded,
@@ -750,7 +871,7 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                               child: SizedBox(
                                 height: 250,
                                 child: _buildMagnitudeChart(
-                                  title: 'Gyro. Magnitude (rad/s)',
+                                  title: 'Gyro. Magnitude',
                                   dataPoints: _gyroMagnitudes,
                                   unit: 'rad/s',
                                   icon: Icons.rotate_right_rounded,
@@ -772,7 +893,9 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                       ),
                       elevation: 4,
                       child: ElevatedButton(
-                        onPressed: _isTrainning ? _stopTraining : _startCountdown,
+                        onPressed: _isTrainning
+                            ? _stopTraining
+                            : _startCountdown,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 24),
                           backgroundColor: _isTrainning
@@ -784,8 +907,10 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
                         ),
                         child: Text(
                           _isTrainning ? 'STOP' : 'Start',
-                          style:
-                              const TextStyle(fontSize: 24, color: Colors.white),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -818,8 +943,10 @@ Map<String, double> extractFeaturesDart(List<Map<String, double>> accelData, Lis
               ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
+
   // UI Build row for time, distance, activity, speed (remains the same)
   Widget _buildDetailRow(String title, String value, String subValue) {
     return Padding(

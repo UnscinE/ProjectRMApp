@@ -28,7 +28,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26
-        minSdk = flutter.minSdkVersion
+        //minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -48,10 +48,10 @@ dependencies {
     // ... (dependencies อื่น ๆ ของคุณ)
 
     // **เพิ่มบรรทัดนี้เพื่อรองรับ Select TF Ops**
-    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.15.0") // ใช้เวอร์ชัน TFLite ที่เข้ากันได้
-
-    // หากคุณมีการเรียกใช้ TFLite อื่นๆ
-    // implementation 'org.tensorflow:tensorflow-lite:2.15.0' 
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")  // ✅ add this
+    //implementation("org.tensorflow:tensorflow-lite:2.16.1")
+   // implementation("org.tensorflow:tensorflow-lite-select-tf-ops:0.0.0-nightly-SNAPSHOT")
+implementation("org.tensorflow:tensorflow-lite-gpu")
 }
 
 

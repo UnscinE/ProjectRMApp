@@ -14,7 +14,8 @@ class TrainingRepo {
     final snap = await ref.get();
     if (!snap.exists) {
       await ref.set({
-        if (displayName != null && displayName.isNotEmpty) 'displayName': displayName,
+        if (displayName != null && displayName.isNotEmpty)
+          'displayName': displayName,
         if (email != null && email.isNotEmpty) 'email': email,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -23,17 +24,16 @@ class TrainingRepo {
   }
 
   // ---------- อ่าน/เขียน KM & Weeks ----------
-  static Future<void> setTargetKm(String uid, int km) =>
-      _col.doc(uid).set(
-        {'target_km': km, 'updatedAt': FieldValue.serverTimestamp()},
-        SetOptions(merge: true),
-      );
+  static Future<void> setTargetKm(String uid, int km) => _col.doc(uid).set({
+    'target_km': km,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
 
   static Future<void> setTrainingWeeks(String uid, int weeks) =>
-      _col.doc(uid).set(
-        {'training_weeks': weeks, 'updatedAt': FieldValue.serverTimestamp()},
-        SetOptions(merge: true),
-      );
+      _col.doc(uid).set({
+        'training_weeks': weeks,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
   static Future<Map<String, dynamic>?> fetchPrefs(String uid) async {
     final doc = await _col.doc(uid).get();
@@ -41,8 +41,9 @@ class TrainingRepo {
   }
 
   // ---------- โปรไฟล์ร่างกาย ----------
-  static Stream<DocumentSnapshot<Map<String, dynamic>>> userDocStream(String uid) =>
-      _col.doc(uid).snapshots();
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> userDocStream(
+    String uid,
+  ) => _col.doc(uid).snapshots();
 
   static Future<void> updateProfile(
     String uid, {
@@ -67,5 +68,24 @@ class TrainingRepo {
       return Future.value();
     }
     return _col.doc(uid).set(data, SetOptions(merge: true));
+  }
+
+  // สมมติ: Program ID ปัจจุบันถูกเก็บอยู่ใน Document 'config' ภายใต้ Sub-Collection 'Program_Config'
+  static Future<List?> fetchCurrentProgramId(String uid) async {
+    try {
+      final userConfigDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('Program')
+          .get();
+
+      final programIds = userConfigDoc.docs.map((doc) => doc.id).toList();
+
+      // ถ้าไม่พบการตั้งค่าปัจจุบัน
+      return programIds;
+    } catch (e) {
+      print("❌ Error fetching current program ID for user $uid: $e");
+      return null;
+    }
   }
 }

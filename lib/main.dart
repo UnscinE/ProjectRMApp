@@ -7,9 +7,7 @@ import 'package:timezone/data/latest.dart' as tzdata;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tzdata.initializeTimeZones();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const RunningApp());
 }
 
@@ -25,4 +23,6 @@ class RunningApp extends StatelessWidget {
       home: const AuthGate(),
     );
   }
+
+  
 }
