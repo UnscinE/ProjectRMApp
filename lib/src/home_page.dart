@@ -5,34 +5,35 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'run_page.dart';
-
 import 'tabs/home_tab.dart';
 import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
 import 'tabs/trainning_tab.dart';
 import 'tabs/account_tab.dart';
-import 'training_repo.dart' as repo;
+
+import 'distance_select_page.dart';
+import 'duration_select_page.dart';
+import 'program_repo.dart' as repo;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
-
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   int _index = 0;
-  int targetKm = 0;
-  int trainingWeeks = 0;
-  bool isLoading = true;
+  int targetKm = 5;
+  int trainingWeeks = 4;
 
+  bool isLoading = true;
   StreamSubscription? _userDocSub;
+  bool _navigatingToSelect = false;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _listenUserPrefs(); // ✅ ถ้ามี user จะฟังค่า real-time
+    _bootstrap();
   }
 
   @override
@@ -41,42 +42,92 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    final user = FirebaseAuth.instance.currentUser;
+  Future<void> _bootstrap() async {
+    await _loadLocalFallback();
+    await _ensureProgramSelected();
+    _listenUserPrefs();
+    if (mounted) setState(() => isLoading = false);
+  }
 
-    if (user != null) {
-      final uid = user.uid;
-
-      // ✅ สร้างเอกสารครั้งแรกถ้ายังไม่มี (สำคัญ!)
-      await repo.TrainingRepo.ensureUserDocExists(
-        uid: uid,
-        displayName: user.displayName,
-        email: user.email,
-      );
-
-      // โหลดค่าเป้าหมายเบื้องต้นจาก Firestore (one-shot)
-      final data = await repo.TrainingRepo.fetchPrefs(uid);
-      final km = (data?['target_km'] as int?) ?? 5;
-      final weeks = (data?['training_weeks'] as int?) ?? 4;
-
-      if (!mounted) return;
-      setState(() {
-        targetKm = km;
-        trainingWeeks = weeks;
-        isLoading = false;
-      });
-    } else {
-      // ยังไม่ล็อกอิน → ใช้ค่าที่เก็บในเครื่องไว้ก่อน
+  Future<void> _loadLocalFallback() async {
+    try {
       final prefs = await SharedPreferences.getInstance();
-      final km = prefs.getInt('target_km') ?? 5;
-      final weeks = prefs.getInt('training_weeks') ?? 4;
+      final km = prefs.getInt('program_distance');
+      final weeks = prefs.getInt('program_duration');
+      if (km != null && weeks != null && mounted) {
+        setState(() {
+          targetKm = km;
+          trainingWeeks = weeks;
+        });
+      }
+    } catch (_) {}
+  }
 
-      if (!mounted) return;
+  Future<void> _ensureProgramSelected() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasDistance = prefs.containsKey('program_distance');
+    final hasDuration = prefs.containsKey('program_duration');
+    if (hasDistance && hasDuration) {
       setState(() {
-        targetKm = km;
-        trainingWeeks = weeks;
-        isLoading = false;
+        targetKm = prefs.getInt('program_distance')!;
+        trainingWeeks = prefs.getInt('program_duration')!;
       });
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final data = await repo.ProgramRepo
+            .fetchActive(user.uid)
+            .timeout(const Duration(seconds: 6));
+
+        if (data != null) {
+          final dist = (data['distance'] as num?)?.toInt();
+          final weeks = (data['duration_choice'] as num?)?.toInt() ??
+              ((data['duration'] is List && (data['duration'] as List).isNotEmpty)
+                  ? ((data['duration'] as List).first as num).toInt()
+                  : null);
+
+          if (dist != null && weeks != null) {
+            await prefs.setInt('program_distance', dist);
+            await prefs.setInt('program_duration', weeks);
+            if (mounted) {
+              setState(() {
+                targetKm = dist;
+                trainingWeeks = weeks;
+              });
+            }
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!_navigatingToSelect && mounted) {
+      _navigatingToSelect = true;
+
+      final ok1 = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const DistanceSelectPage()),
+      );
+      if (ok1 != true || !mounted) {
+        _navigatingToSelect = false;
+        return;
+      }
+
+      final ok2 = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const DurationSelectPage()),
+      );
+      _navigatingToSelect = false;
+
+      final km = prefs.getInt('program_distance') ?? targetKm;
+      final w  = prefs.getInt('program_duration') ?? trainingWeeks;
+      if (mounted) {
+        setState(() {
+          targetKm = km;
+          trainingWeeks = w;
+        });
+      }
     }
   }
 
@@ -85,26 +136,38 @@ class _HomePageState extends State<HomePage> {
     if (user == null) return;
 
     _userDocSub?.cancel();
-    _userDocSub = repo.TrainingRepo.userDocStream(user.uid).listen((snap) {
-      final data = snap.data();
+    _userDocSub = repo.ProgramRepo.basicStream(user.uid).listen((data) async {
       if (data == null) return;
 
-      final km = (data['target_km'] as int?) ?? targetKm;
-      final weeks = (data['training_weeks'] as int?) ?? trainingWeeks;
+      final dist = (data['distance'] as num?)?.toInt();
+      final weeks = (data['duration_choice'] as num?)?.toInt() ??
+          ((data['duration'] is List && (data['duration'] as List).isNotEmpty)
+              ? ((data['duration'] as List).first as num).toInt()
+              : null);
+
+      if (dist == null || weeks == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      if (!prefs.containsKey('program_distance')) {
+        await prefs.setInt('program_distance', dist);
+      }
+      if (!prefs.containsKey('program_duration')) {
+        await prefs.setInt('program_duration', weeks);
+      }
 
       if (!mounted) return;
       setState(() {
-        targetKm = km;
+        targetKm = dist;
         trainingWeeks = weeks;
       });
-    });
+    }, onError: (_) {});
   }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    final List<Widget> tabs = [
+    final tabs = <Widget>[
       DashboardTab(
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
@@ -124,12 +187,7 @@ class _HomePageState extends State<HomePage> {
         onSignOut: () async {
           await FirebaseAuth.instance.signOut();
           _userDocSub?.cancel();
-          if (mounted) {
-            setState(() {
-              _index = 0;
-              // ค่าบนหน้า Home กลับมาใช้ของ local เผื่อยังอยู่ในแอป
-            });
-          }
+          if (mounted) setState(() => _index = 0);
         },
       ),
     ];

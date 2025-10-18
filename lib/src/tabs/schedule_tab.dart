@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import '../widgets/calendar_helper.dart' as cal;
+import 'package:firebase_auth/firebase_auth.dart';
+import '../training_repo.dart';
 
 class ScheduleTab extends StatefulWidget {
   final int weeks;    // จำนวนสัปดาห์ เช่น 4
@@ -118,42 +120,58 @@ class _ScheduleTabState extends State<ScheduleTab> {
 
   // ---------- เพิ่มทั้งโปรแกรม (เริ่มจากวันที่ผู้ใช้เลือก) ----------
   Future<void> _addWholeProgramToCalendar(BuildContext context) async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now.subtract(const Duration(days: 1)),
-      lastDate: now.add(const Duration(days: 365)),
-      helpText: 'เลือก “วันเริ่มโปรแกรม”',
-      confirmText: 'เพิ่มลงปฏิทิน',
-      cancelText: 'ยกเลิก',
-    );
-    if (picked == null) return;
+  final now = DateTime.now();
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: now,
+    firstDate: now.subtract(const Duration(days: 1)),
+    lastDate: now.add(const Duration(days: 365)),
+    helpText: 'เลือก “วันเริ่มโปรแกรม”',
+    confirmText: 'เพิ่มลงปฏิทิน',
+    cancelText: 'ยกเลิก',
+  );
+  if (picked == null) return;
 
-    final startDate = picked.copyWith(hour: 8, minute: 0); // วันเริ่มจริง
+  final startDate = picked.copyWith(hour: 8, minute: 0);
 
-    try {
-      final selectedId = _calendarId ?? await cal.loadSelectedCalendarId();
-      final calendars = await cal.getWritableCalendars().catchError((_) => <dynamic>[]);
-      final hasWritable = calendars.isNotEmpty;
+  // เตรียมข้อมูลไว้ส่งเข้า Firestore
+  final user = FirebaseAuth.instance.currentUser;
+  final userId = user?.uid ?? 'anonymous';
+  String? calendarIdToSave;
+  String? calendarTitleToSave;
+  String source = 'device_calendar';
 
-      if (hasWritable) {
-        await cal.bulkInsertToDeviceCalendar(
-          calendarId: selectedId,            // << ใส่ลงเล่มที่เลือก
-          week1StartDate: startDate,
-          totalWeeks: widget.weeks,
-          targetKm: widget.targetKm,
-          planByWeeks: _allWeeks,
-          startHour: 8,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เพิ่มลงเล่ม: ${_calendarTitle.isEmpty ? (selectedId ?? "ไม่ระบุ") : _calendarTitle} เรียบร้อย')),
-        );
-        return;
+  try {
+    // 1) ลองเขียนลงปฏิทินเครื่องก่อน
+    final calendars = await cal.getWritableCalendars().catchError((_) => <dynamic>[]);
+    final hasWritable = calendars.isNotEmpty;
+
+    if (hasWritable) {
+      // หากผู้ใช้เลือกเล่มไว้ใน prefs ก็ใช้ id นั้นด้วย
+      final selectedId = await cal.loadSelectedCalendarId();
+      calendarIdToSave = selectedId ?? calendars.first.id;
+      final matched = calendars.where((c) => c.id == calendarIdToSave).toList();
+      if (matched.isNotEmpty) {
+        calendarTitleToSave =
+            '${matched.first.name ?? 'Calendar'}${(matched.first.accountName ?? '').isNotEmpty ? ' • ${matched.first.accountName}' : ''}';
       }
 
-      // เขียนตรงไม่ได้ → สร้างไฟล์ .ics
+      await cal.bulkInsertToDeviceCalendar(
+        calendarId: calendarIdToSave,
+        week1StartDate: startDate,
+        totalWeeks: widget.weeks,
+        targetKm: widget.targetKm,
+        planByWeeks: _allWeeks,
+        startHour: 8,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('เพิ่มลงปฏิทินเครื่องเรียบร้อย')),
+      );
+    } else {
+      // 2) ถ้าเป็น emulator/เขียนลงเครื่องไม่ได้ → ส่งออกเป็น .ics
+      source = 'ics';
       await cal.exportTrainingPlanToICS(
         week1StartDate: startDate,
         totalWeeks: widget.weeks,
@@ -165,13 +183,27 @@ class _ScheduleTabState extends State<ScheduleTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ส่งออกไฟล์ .ics เรียบร้อย')),
       );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ล้มเหลว: $e')),
-      );
     }
+
+    // 3) บันทึก “โปรแกรม” ลง Firestore (collection: program)
+    await ProgramRepo.createProgram(
+      userId: userId,
+      startDate: startDate,
+      totalWeeks: widget.weeks,
+      targetKm: widget.targetKm,
+      calendarId: calendarIdToSave,
+      calendarTitle: calendarTitleToSave,
+      source: source,
+      planSnapshot: _allWeeks, // snapshot ของตารางแผน
+    );
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('ล้มเหลว: $e')),
+    );
   }
+}
+
 
   // ---------- UI ----------
   @override
