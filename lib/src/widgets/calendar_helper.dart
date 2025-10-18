@@ -1,4 +1,5 @@
 // lib/src/widgets/calendar_helper.dart
+import 'dart:async';            // <-- ✅ เพิ่มอันนี้
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,7 +14,8 @@ import 'package:device_calendar/device_calendar.dart' as devcal;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:add_2_calendar/add_2_calendar.dart';
 
-/// ---------- Utilities ----------
+/// ========= Utilities =========
+
 String _escapeICS(String input) {
   return input
       .replaceAll('\\', '\\\\')
@@ -54,7 +56,8 @@ int _guessMinutes(String? timeText) {
   return 60;
 }
 
-/// ---------- A) .ICS export (สำหรับ emulator/web) ----------
+/// ========= A) .ICS export =========
+
 Future<void> exportTrainingPlanToICS({
   required DateTime week1StartDate,
   required int totalWeeks,
@@ -86,7 +89,7 @@ Future<void> exportTrainingPlanToICS({
           .copyWith(hour: startHour, minute: 0, second: 0);
 
       final endLocal = startLocal.add(Duration(minutes: _guessMinutes(timeTxt)));
-      final uid = '${startLocal.millisecondsSinceEpoch}-${w}-${day}';
+      final uid = '${startLocal.millisecondsSinceEpoch}-$w-$day';
 
       final title = note.isEmpty || note.toLowerCase() == 'rest'
           ? 'ฝึกวิ่ง $dist'
@@ -143,7 +146,6 @@ Future<void> exportTrainingPlanToICS({
   } catch (_) {}
 }
 
-/// เปิดหน้า Import และหน้า “สร้างเล่มใหม่” ของ Google Calendar
 Future<void> openGoogleCalendarImportPage() async {
   const url = 'https://calendar.google.com/calendar/u/0/r/settings/import';
   await launchUrlString(url, mode: LaunchMode.externalApplication);
@@ -154,7 +156,6 @@ Future<void> openGoogleCalendarCreateCalendarPage() async {
   await launchUrlString(url, mode: LaunchMode.externalApplication);
 }
 
-/// นัดเดียวแบบ recurring (ตัวอย่าง)
 Future<void> addStartProgramToCalendar({
   required DateTime startDate,
   required int trainingWeeks,
@@ -162,7 +163,7 @@ Future<void> addStartProgramToCalendar({
 }) async {
   final title = 'เริ่มโปรแกรมวิ่ง $targetKm กม.';
   final desc  = 'โปรแกรมฝึกวิ่ง $targetKm กม. ระยะเวลา $trainingWeeks สัปดาห์';
-  final endDate = startDate.add(const Duration(hours: 1));
+  final endDate  = startDate.add(const Duration(hours: 1));
   final recurEnd = startDate.add(Duration(days: 7 * (trainingWeeks - 1)));
 
   if (!kIsWeb) {
@@ -196,19 +197,33 @@ Future<void> addStartProgramToCalendar({
   await launchUrlString(url, mode: LaunchMode.externalApplication);
 }
 
-/// ---------- B) จัดการ “เล่ม (Calendar)” บนอุปกรณ์ ----------
+/// ========= B) Device calendars =========
+
+final _plugin = devcal.DeviceCalendarPlugin();
+
+Future<bool> _ensurePerms() async {
+  final has = await _plugin.hasPermissions();
+  if (has.isSuccess == true && has.data == true) return true;
+  final req = await _plugin.requestPermissions();
+  return req.isSuccess == true && req.data == true;
+}
+
+bool _calendarPermGranted = false;
+
 Future<List<devcal.Calendar>> getWritableCalendars() async {
   final plugin = devcal.DeviceCalendarPlugin();
 
-  final perms = await plugin.requestPermissions();
-  if (perms.data != true) {
-    throw 'ผู้ใช้ไม่อนุญาตสิทธิ์ปฏิทิน';
+  if (!_calendarPermGranted) {
+    final perms = await plugin.requestPermissions();
+    _calendarPermGranted = (perms.data == true);
+    if (!_calendarPermGranted) {
+      throw 'ผู้ใช้ไม่อนุญาตสิทธิ์ปฏิทิน';
+    }
   }
 
+  // เรียก provider ทุกครั้งเพื่อดึงเล่มล่าสุด
   final calsResult = await plugin.retrieveCalendars();
 
-  // เดิม: where((c) => (c.isReadOnly ?? true) == false)  // ตัดค่า null ทิ้งไปหมด
-  // ใหม่: รับทุกอันที่ "ไม่ใช่ true" (คือ false หรือ null)
   final List<devcal.Calendar> calendars =
       (calsResult.data ?? <devcal.Calendar>[])
           .where((devcal.Calendar c) => c.isReadOnly != true)
@@ -220,33 +235,54 @@ Future<List<devcal.Calendar>> getWritableCalendars() async {
   return calendars;
 }
 
-
-/// dialog ให้เลือกเล่ม + ปุ่มไป “สร้างเล่มใหม่” และ “นำเข้า .ics”
-// แทนที่ของเดิมทั้งฟังก์ชันนี้
+/// dialog เลือกเล่ม (มีปุ่ม Refresh / เปิดแอป Calendar / Auto-scan)
 Future<String?> pickCalendarIdDialog(BuildContext context) async {
-  // ฟังก์ชันดึงรายชื่อ (เรียกซ้ำได้)
   Future<List<devcal.Calendar>> _load() async {
     try {
-      return await getWritableCalendars(); // เราเรียก retrieve ทุกครั้งอยู่แล้ว
+      return await getWritableCalendars();
     } catch (_) {
       return <devcal.Calendar>[];
     }
   }
 
-  final cals = await _load();
+  // โหลดรอบแรก
+  List<devcal.Calendar> calendars = await _load();
 
-  return showDialog<String>(
+  // ⬇️ showDialog คืน Future<String?>
+  final result = await showDialog<String>(
     context: context,
+    barrierDismissible: true,
     builder: (ctx) {
-      // ให้ dialog รีเฟรชตัวเองได้
+      bool isScanning = false;
+      int scannedSec = 0;
+      Timer? timer;
+
+      Future<void> _refresh(StateSetter setState) async {
+        final latest = await _load();
+        setState(() => calendars = latest);
+      }
+
+      Future<void> _startAutoScan(StateSetter setState) async {
+        if (isScanning) return;
+        isScanning = true;
+        scannedSec = 0;
+        timer?.cancel();
+        timer = Timer.periodic(const Duration(seconds: 2), (t) async {
+          scannedSec += 2;
+          final latest = await _load();
+          setState(() {
+            calendars = latest;
+          });
+          if (calendars.isNotEmpty || scannedSec >= 30) {
+            isScanning = false;
+            t.cancel();
+          }
+        });
+      }
+
       return StatefulBuilder(
         builder: (ctx, setState) {
-          List<devcal.Calendar> calendars = cals;
-
-          Future<void> _refresh() async {
-            final latest = await _load();
-            setState(() => calendars = latest);
-          }
+          final hasAny = calendars.isNotEmpty;
 
           return SimpleDialog(
             titlePadding: const EdgeInsets.only(left: 16, right: 8, top: 12, bottom: 0),
@@ -257,16 +293,32 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                 IconButton(
                   tooltip: 'รีเฟรชรายชื่อ',
                   icon: const Icon(Icons.refresh),
-                  onPressed: _refresh,
-                )
+                  onPressed: () => _refresh(setState),
+                ),
               ],
             ),
             children: [
-              if (calendars.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('ยังไม่พบเล่มที่เขียนได้ (ลองกดรีเฟรช หรือเปิด Google Calendar แล้ว Refresh)'),
+              if (!hasAny)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('ยังไม่พบเล่ม (ลองกดรีเฟรช หรือเปิด Google Calendar แล้วกลับมา)'),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () => _startAutoScan(setState),
+                        icon: const Icon(Icons.search),
+                        label: Text(
+                          isScanning
+                              ? 'เริ่มค้นหาเล่มใหม่อัตโนมัติ… (${scannedSec}s)'
+                              : 'เริ่มค้นหาเล่มใหม่อัตโนมัติ (30 วินาที)',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+
               for (final c in calendars)
                 SimpleDialogOption(
                   onPressed: () => Navigator.pop(ctx, c.id),
@@ -275,7 +327,22 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                     '${(c.accountName ?? '').isNotEmpty ? ' • ${c.accountName}' : ''}',
                   ),
                 ),
+
               const Divider(),
+
+              SimpleDialogOption(
+                onPressed: () async {
+                  const url = 'https://calendar.google.com/calendar/';
+                  await launchUrlString(url, mode: LaunchMode.externalApplication);
+                },
+                child: const Row(
+                  children: [
+                    Icon(Icons.open_in_new, size: 18),
+                    SizedBox(width: 8),
+                    Text('เปิดแอป Calendar (ช่วยกระตุ้นซิงก์)'),
+                  ],
+                ),
+              ),
               SimpleDialogOption(
                 onPressed: () {
                   Navigator.pop(ctx, null);
@@ -308,10 +375,12 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
       );
     },
   );
+
+  // ยกเลิก timer ถ้ามี (เมื่อ dialog ปิด)
+  // (ไม่ต้อง .then กับ StatefulBuilder แล้ว)
+  return result;
 }
 
-
-/// load/save calendarId ที่เลือกไว้
 Future<String?> loadSelectedCalendarId() async {
   final prefs = await SharedPreferences.getInstance();
   return prefs.getString('calendarId');
@@ -322,7 +391,6 @@ Future<void> saveSelectedCalendarId(String id) async {
   await prefs.setString('calendarId', id);
 }
 
-/// ใส่ทั้งโปรแกรมลง “เล่มที่ระบุ”
 Future<void> bulkInsertToDeviceCalendar({
   String? calendarId,
   required DateTime week1StartDate,
@@ -331,9 +399,7 @@ Future<void> bulkInsertToDeviceCalendar({
   required List<List<Map<String, String>>> planByWeeks,
   int startHour = 6,
 }) async {
-  final plugin = devcal.DeviceCalendarPlugin();
-  final perms = await plugin.requestPermissions();
-  if (perms.data != true) throw 'ผู้ใช้ไม่อนุญาตสิทธิ์ปฏิทิน';
+  if (!await _ensurePerms()) throw 'ผู้ใช้ไม่อนุญาตสิทธิ์ปฏิทิน';
 
   devcal.Calendar? targetCal;
   final calendars = await getWritableCalendars();
@@ -379,12 +445,11 @@ Future<void> bulkInsertToDeviceCalendar({
         end: tzEnd,
       );
 
-      await plugin.createOrUpdateEvent(ev);
+      await _plugin.createOrUpdateEvent(ev);
     }
   }
 }
 
-/// ส่งเฉพาะ “วันนี้” ไปเล่มที่เลือก
 Future<void> addTodaysPlanToDeviceCalendar({
   required DateTime week1StartDate,
   required int totalWeeks,
@@ -393,9 +458,7 @@ Future<void> addTodaysPlanToDeviceCalendar({
   String? calendarId,
   int startHour = 6,
 }) async {
-  final plugin = devcal.DeviceCalendarPlugin();
-  final perms = await plugin.requestPermissions();
-  if (perms.data != true) throw 'ผู้ใช้ไม่อนุญาตสิทธิ์ปฏิทิน';
+  if (!await _ensurePerms()) throw 'ผู้ใช้ไม่อนุญาตสิทธิ์ปฏิทิน';
 
   final calendars = await getWritableCalendars();
   if (calendars.isEmpty) throw 'ไม่พบปฏิทินที่เขียนได้';
@@ -444,18 +507,16 @@ Future<void> addTodaysPlanToDeviceCalendar({
     start: tzStart,
     end: tzEnd,
   );
-  await plugin.createOrUpdateEvent(ev);
+  await _plugin.createOrUpdateEvent(ev);
 }
 
 Future<void> debugPrintCalendars() async {
   try {
-    final plugin = devcal.DeviceCalendarPlugin();
-    final perms = await plugin.requestPermissions();
-    if (perms.data != true) {
+    if (!await _ensurePerms()) {
       print('Calendar permission not granted');
       return;
     }
-    final res = await plugin.retrieveCalendars();
+    final res = await _plugin.retrieveCalendars();
     final list = res.data ?? <devcal.Calendar>[];
     print('---- Calendars from provider ----');
     for (final c in list) {
