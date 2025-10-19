@@ -401,29 +401,29 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                 const SizedBox(height: 16),
 
                 // ปุ่ม Start เล็ก (ถ้าต้องการเก็บไว้)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    print('Start button pressed!');
-                  },
-                  icon: const Icon(Icons.timer, size: 20),
-                  label: const Text('เริ่มจับเวลา'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF6F00),
-                    side: const BorderSide(
-                      color: Color(0xFFFF6F00),
-                      width: 2,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      fontSize: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
+                // OutlinedButton.icon(
+                //   onPressed: () {
+                //     print('Start button pressed!');
+                //   },
+                //   icon: const Icon(Icons.timer, size: 20),
+                //   label: const Text('เริ่มจับเวลา'),
+                //   style: OutlinedButton.styleFrom(
+                //     foregroundColor: const Color(0xFFFF6F00),
+                //     side: const BorderSide(
+                //       color: Color(0xFFFF6F00),
+                //       width: 2,
+                //     ),
+                //     padding: const EdgeInsets.symmetric(vertical: 14),
+                //     textStyle: const TextStyle(
+                //       fontWeight: FontWeight.w700,
+                //       letterSpacing: 0.3,
+                //       fontSize: 16,
+                //     ),
+                //     shape: RoundedRectangleBorder(
+                //       borderRadius: BorderRadius.circular(14),
+                //     ),
+                //   ),
+                // ),
               ],
             ),
           ),
