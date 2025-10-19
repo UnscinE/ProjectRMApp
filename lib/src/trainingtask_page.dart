@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ffi';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:location/location.dart' hide LocationAccuracy;
 import 'package:geolocator/geolocator.dart';
 import 'package:rmapp/src/modelhandle_backend.dart';
@@ -33,6 +34,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
   //String _time = '0.00';
 
   HarModelPredictor _predictor = HarModelPredictor();
+
   final double _goalDistanceKm = 500.0;
   String? _currentProgramId;
   double _distance = 0;
@@ -42,7 +44,12 @@ class _ScreenTwoState extends State<ScreenTwo> {
   String _runningType = 'Long Run';
   double _progress = 0.6;
   bool _isTrainning = false;
-  final int _targetSeconds = 180; // 10 minutes target
+
+  String _Runningtarget = '';
+  int _Timetarget = 0; // 10 minutes target (seconds)
+  String _Runningtype = '';
+
+  double _targetDistanceKm = 0.0;
 
   //Stop watch timer variables
   Timer? _timer;
@@ -69,7 +76,6 @@ class _ScreenTwoState extends State<ScreenTwo> {
   // Sensor State (Updated to also store magnitude)
   Vector3 _accelerometerData = const Vector3(0, 0, 0);
   Vector3 _gyroscopeData = const Vector3(0, 0, 0);
-  double _gForce = 0.0;
 
   // --- NEW: Data for magnitude charts ---
   final List<double> _accelMagnitudes = [];
@@ -179,7 +185,13 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
   Future<void> _recordData() async {
     final user = FirebaseAuth.instance.currentUser;
+    // 1. Calculate percentage as a value between 0.0 and 1.0
+    final double progress = _calculatePercentage();
 
+    // 2. Convert to an integer percentage (0 to 100)
+    // This is the number you want to store in Firestore
+    final int progressBarValue = (progress * 100)
+        .round(); // 0.5 * 100 = 50.0 -> 50
     // ตรวจสอบ User และ Program ID
     if (user == null || _currentProgramId == null) {
       print(
@@ -205,8 +217,6 @@ class _ScreenTwoState extends State<ScreenTwo> {
     // คำนวณ Progress Bar (เทียบกับ Goal Distance)
     // NOTE: ควรหา Total Distance สะสมก่อนหน้ามาบวกด้วย
     final double totalDistanceKm = _totalDistance / 1000.0;
-    final double progressPercent = (totalDistanceKm / _goalDistanceKm) * 100;
-    final int progressBarValue = progressPercent.clamp(0, 100).round();
 
     // แปลง Duration เป็น String (HH:MM:SS)
     String twoDigits(int n) => n.toString().padLeft(2, "0");
@@ -231,7 +241,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
       'duration_display': timeString,
       'average_speed_kph': avgSpeedKph.toStringAsFixed(2),
       'progress_bar_percent': progressBarValue,
+
+      //currentProgress
     };
+    print(progressBarValue);
 
     // 4. บันทึกข้อมูล
     try {
@@ -257,8 +270,79 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
     if (_currentProgramId != null) {
       print("✅ Program ID ล่าสุดที่ใช้: $_currentProgramId");
+      getTodaydata();
     } else {
       print("⚠️ ไม่พบ Program ID ปัจจุบันสำหรับผู้ใช้นี้");
+    }
+  }
+
+  void getTodaydata() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid;
+    final programId = _currentProgramId;
+
+    if (userId == null || programId == null) {
+      // อาจแสดงข้อความว่า "ยังไม่มีโปรแกรมที่ใช้งานอยู่"
+      return;
+    }
+
+    // 1. กำหนด Document ID เป็นวันที่ในรูปแบบ YYYY-MM-DD (ใช้สำหรับ Firestore Document ID)
+    // ⚠️ แก้ไขตรงนี้: เปลี่ยนจาก 'dd-MM-yyyy' เป็น 'yyyy-MM-dd'
+    final now = DateTime.now();
+    final todayId = DateFormat('dd-MM-yyyy').format(now);
+
+    // 2. สร้าง Path ไปยังเอกสาร Training วันนี้
+    // Path: users/{userId}/Program/{programId}/Training/{todayId}
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('Program')
+        .doc(programId)
+        .collection('Training')
+        .doc(todayId); // ใช้ todayId ที่เป็น yyyy-MM-dd
+
+    try {
+      final snapshot = await docRef.get();
+
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+
+        if (!mounted) return;
+        setState(() {
+          // ใช้ชื่อ Field ที่ถูกต้องจาก Firestore (ปลอดภัยกับชนิดข้อมูลที่หลากหลาย)
+          _Runningtarget = data['distance']?.toString() ?? 'N/A';
+          _Runningtype = data['type']?.toString() ?? 'Rest';
+
+          print(_Runningtarget);
+          // อ่านค่าเวลาเป็นสตริงแล้วกรองให้เหลือเฉพาะตัวเลขก่อนแปลงเป็น int
+          final String timeRaw = data['time']?.toString() ?? '';
+          final String numeric = timeRaw.replaceAll(RegExp(r'[^0-9]'), '');
+          _Timetarget = numeric.isNotEmpty ? int.parse(numeric) : 0;
+
+          final targetString = _Runningtarget.replaceAll(
+            RegExp(r'[^0-9.]'),
+            '',
+          );
+          _targetDistanceKm = double.tryParse(targetString) ?? 0.0;
+        });
+      } else {
+        // กรณีไม่พบแผนของวันนี้
+        if (!mounted) return;
+        setState(() {
+          _Runningtarget = 'N/A';
+          _Timetarget = 0;
+          _Runningtype = 'No Plan';
+        });
+      }
+    } catch (e) {
+      print("Error fetching today's training data: $e");
+      // จัดการข้อผิดพลาด
+      if (!mounted) return;
+      setState(() {
+        _Runningtarget = 'Error';
+        _Timetarget = 0;
+        _Runningtype = 'Error';
+      });
     }
   }
 
@@ -290,7 +374,6 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
           setState(() {
             _accelerometerData = Vector3(event.x, event.y, event.z);
-            _gForce = totalForce / 9.8;
 
             // NEW: Add magnitude to the list
             _accelMagnitudes.add(totalForce);
@@ -344,6 +427,19 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       setState(() {
         _secs++;
+
+        // ⚠️ NEW: ตรวจสอบเงื่อนไขการหยุดการฝึกซ้อม
+        // ถ้าความคืบหน้ารวมถึง 1.0 (100%) ให้หยุดการฝึกซ้อม
+        if (_distance >= _targetDistanceKm) {
+          t.cancel(); // หยุด Timer ของ Stopwatch
+          _stopTraining(); // เรียกฟังก์ชันหยุดการฝึกซ้อมทั้งหมด
+          // อาจเพิ่ม SnackBar แจ้งเตือนว่า "Goal Reached!"
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🎉 Training Goal Reached! Session Ended.'),
+            ),
+          );
+        }
       });
     });
     setState(() {});
@@ -370,16 +466,34 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   //Calculate percentage for progress bar
-  double _calculatePercentage() {
-    if (_targetSeconds <= 0) {
-      return 0.0; // Avoid division by zero
+  double _calculatePercentage({
+    double weightTime = 0.5,
+    double weightDistance = 0.5,
+  }) {
+    // 1. คำนวณความคืบหน้าด้านเวลา (Time Percentage)
+    double timePercentage = 0.0;
+    final targetSecs = _Timetarget * 60; // แปลงนาทีเป้าหมายเป็นวินาที
+
+    if (targetSecs > 0) {
+      // ความคืบหน้าเวลา = วินาทีที่วิ่งได้ / วินาทีเป้าหมาย
+      timePercentage = _secs / targetSecs;
     }
 
-    // Calculate the percentage
-    double percentage = _secs / _targetSeconds;
+    // 2. คำนวณความคืบหน้าด้านระยะทาง (Distance Percentage)
+    double distancePercentage = 0.0;
 
-    // Clamp the value between 0.0 and 1.0 (0% to 100%)
-    return percentage.clamp(0.0, 1.0);
+    if (_targetDistanceKm > 0) {
+      // ความคืบหน้าระยะทาง = ระยะทางที่วิ่งได้ / ระยะทางเป้าหมาย
+      distancePercentage = _distance / _targetDistanceKm;
+    }
+
+    // 3. รวมและถัวเฉลี่ยความคืบหน้าทั้งสอง
+    double overallPercentage =
+        (timePercentage.clamp(0.0, 1.0) * weightTime +
+        distancePercentage.clamp(0.0, 1.0) * weightDistance);
+
+    // 4. จำกัดค่าให้อยู่ในช่วง 0.0 ถึง 1.0
+    return overallPercentage.clamp(0.0, 1.0);
   }
 
   // Existing methods...
@@ -797,12 +911,12 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                         _buildDetailRow(
                                           'Time',
                                           _time,
-                                          _targetSeconds.toString(),
+                                          '${_Timetarget.toString()} Min',
                                         ),
                                         _buildDetailRow(
                                           'Distance',
                                           _distance.toStringAsFixed(2),
-                                          '${_distance.toStringAsFixed(2)} / 500 km',
+                                          '${_distance.toStringAsFixed(2)} / $_Runningtarget',
                                         ),
                                       ],
                                     ),

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ⚠️ ต้องมี
+import 'package:firebase_auth/firebase_auth.dart'; // ⚠️ ต้องมี
 
 // อ่านปฏิทิน
 import 'package:device_calendar/device_calendar.dart' as devcal;
+import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 class DashboardTab extends StatefulWidget {
@@ -24,21 +27,123 @@ class DashboardTab extends StatefulWidget {
 }
 
 class _DashboardTabState extends State<DashboardTab> {
-  // data UI
-  final distance = 5.0; // (mock — ใส่จริงภายหลัง)
-  final pace = '6:11 / Km'; // (mock)
-  final totalTime = '30:59 นาที'; // (mock)
-  final successPercent = 0.50; // 0..1 (mock)
+  // data UI (mock data)
+  final distance = 5.0;
+  final pace = '6:11 / Km';
+  final totalTime = '30:59 นาที';
+  // final successPercent = 0.50; // ⬅️ ลบออกไป ใช้ _averageSuccessPercent แทน
 
-  String? _calendarTitle; // ชื่อเล่มที่ใช้อยู่ (โชว์บนการ์ดเล็ก ๆ)
-  List<String>? _todayItems; // รายการที่ “ตรงกับปฏิทินวันนี้”
+  // NEW: ตัวแปรสำหรับ Program ID
+  String? _currentProgramId;
+
+  // NEW: ค่าเปอร์เซ็นต์ความสำเร็จเฉลี่ย (0.0 ถึง 1.0)
+  double _averageSuccessPercent = 0.0;
+
+  String? _calendarTitle;
+  List<String>? _todayItems;
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadTodayFromDeviceCalendar();
+    tz.initializeTimeZones(); // เพิ่มการกำหนด Time Zone
+    _loadInitialData(); // ฟังก์ชันรวมสำหรับโหลด Program ID และข้อมูล
+  }
+
+  Future<void> _loadInitialData() async {
+    // 1. ดึง Program ID ปัจจุบัน
+    // ⚠️ NOTE: ควรใช้ FirebaseAuth.instance.currentUser.uid ในโค้ดจริง
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? 'MOCK_USER_ID';
+
+    // ⚠️ MOCK: จำลองการดึง Program ID
+    //   final programId = await TrainingRepo.fetchCurrentProgramId(userId);
+    setState(() {
+      _currentProgramId = '3AUgieOoHsrQ8Bl8AcTl'; // Hardcoded Mock ID
+    });
+
+    // 2. โหลดรายการจากปฏิทิน
+    await _loadTodayFromDeviceCalendar();
+
+    // 3. คำนวณค่าเฉลี่ยความสำเร็จ (เรียกหลังจากได้ Program ID แล้ว)
+    if (_currentProgramId != null) {
+      await _calculateAverageSuccess(userId, _currentProgramId!);
+    }
+  }
+
+  Future<void> _calculateAverageSuccess(String userId, String programId) async {
+    try {
+      // ... (1. กำหนด Reference)
+
+      final trainingCollectionRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('Program')
+          .doc(programId)
+          .collection('Training');
+
+      // 2. ดึงเอกสารทั้งหมดใน Training Collection
+      final querySnapshot = await trainingCollectionRef.get();
+
+      if (querySnapshot.docs.isEmpty) {
+        setState(() {
+          _averageSuccessPercent = 0.0;
+        });
+        return;
+      }
+
+      double totalProgress = 0;
+      int validCount = 0;
+      int totaltrainday = 0;
+
+      // 3. วนลูปเพื่อรวมค่า progress_bar_percent
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+
+        // 🎯 การปรับปรุง: ถ้าไม่มีฟิลด์ (null) ให้ถือว่าเป็น 0.0 ทันที
+        // และแปลงให้อยู่ในรูป double (0-100)
+        double progressValue = 0.0;
+        final rawProgress = data['progress_bar_percent'];
+
+        if (rawProgress is int) {
+          progressValue = rawProgress.toDouble();
+        } else if (rawProgress is String) {
+          progressValue = double.tryParse(rawProgress) ?? 0.0;
+        } else if (rawProgress is double) {
+          progressValue = rawProgress;
+        } else {
+          // กรณี rawProgress เป็น null หรือชนิดข้อมูลอื่นที่ไม่คาดคิด
+          progressValue = 0.0;
+        }
+
+        // เรายังคงต้องการนับเฉพาะวันที่ทำสำเร็จ (> 0) เข้าไปในค่าเฉลี่ย
+        // ถ้าไม่มีฟิลด์ (progressValue = 0) จะไม่ถูกนับรวมใน validCount
+        if (progressValue > 0) {
+          totalProgress += progressValue; // รวมค่า (0-100)
+          validCount++;
+        }
+      }
+
+      totaltrainday = querySnapshot.docs.length;
+
+      // 4. คำนวณค่าเฉลี่ย (0-100) และแปลงเป็น 0.0-1.0
+      double averagePercent100 = (validCount > 0)
+          ? totalProgress / totaltrainday
+          : 0.0;
+      final double finalSuccessPercent = averagePercent100 / 100.0;
+
+      if (mounted) {
+        setState(() {
+          _averageSuccessPercent = finalSuccessPercent.clamp(0.0, 1.0);
+        });
+      }
+
+      print(
+        '✅ Average Success Percent: ${(_averageSuccessPercent * 100).toStringAsFixed(2)}%',
+      );
+    } catch (e) {
+      // ... (จัดการข้อผิดพลาด)
+    }
   }
 
   Future<void> _loadTodayFromDeviceCalendar() async {
@@ -110,7 +215,7 @@ class _DashboardTabState extends State<DashboardTab> {
         devcal.RetrieveEventsParams(
           startDate: tzStart,
           endDate: tzEnd,
-          // includeOccurrences: true,  // <-- ลบออกถ้าฟ้องแดง
+          // includeOccurrences: true,  // <-- ลบออกถ้าฟ้องแดง
         ),
       );
 
@@ -208,7 +313,8 @@ class _DashboardTabState extends State<DashboardTab> {
           Center(
             child: _RingProgress(
               size: 220,
-              percent: successPercent,
+              // 🎯 ใช้ค่าเฉลี่ยที่คำนวณจาก Firestore
+              percent: _averageSuccessPercent,
               stroke: 16,
               bgOpacity: .18,
             ),
@@ -377,7 +483,7 @@ class _RingProgress extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            '${(percent * 100).round()}',
+            '${(percent * 100).toStringAsFixed(2)}',
             style: theme.textTheme.displaySmall?.copyWith(
               fontWeight: FontWeight.w800,
             ),

@@ -1,6 +1,6 @@
 name: rmapp
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
@@ -33,15 +33,18 @@ dependencies:
   open_filex: ^4.7.0
 
   # สำหรับ “เขียนลงปฏิทินเครื่อง”
-  
+
   timezone: ^0.9.4
 
   # (ตัวนี้ไม่จำเป็นแล้ว ถ้าไม่ได้ใช้ flow add_2_calendar สามารถลบได้)
   add_2_calendar: ^3.0.1
 
-# ใช้เรียก model มาใช้งาน
+  # ใช้เรียก model มาใช้งาน
   tflite_flutter: ^0.11.0
   #tflite_flutter_plus: ^0.4.0
+
+  #จัดการฟอร์แมตวันที่
+  intl: ^0.18.1 # หรือเวอร์ชันล่าสุด
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,5 @@
-// lib/src/training_repo.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // ต้องเพิ่ม package intl ใน pubspec.yaml
 
 class TrainingRepo {
   static final _col = FirebaseFirestore.instance.collection('users');
@@ -79,17 +79,17 @@ class TrainingRepo {
   }
 }
 
-/// ====== Program Repo (ใหม่) ======
-/// เก็บโปรแกรมฝึกลง collection: program (แยกจาก users)
+// ----------------------------------------------------------------------
+/// ====== Program Repo (ใหม่ - ปรับปรุงโครงสร้าง) ======
+/// เก็บโปรแกรมฝึกลง Subcollection: users/{userId}/Program/{programId}
 class ProgramRepo {
-  static final _programCol = FirebaseFirestore.instance.collection('program');
+  // เปลี่ยนไปใช้ reference จาก _col ของ TrainingRepo
+  static final _userCol = FirebaseFirestore.instance.collection('users');
 
   /// สร้าง/บันทึกโปรแกรมที่ผู้ใช้เพิ่งกดลงปฏิทิน
   ///
-  /// - แนะนำให้ใช้ autoId 1 เอกสารต่อ 1 ครั้งที่ผู้ใช้เริ่มโปรแกรม
-  /// - field สำคัญ:
-  ///   userId, startDate, totalWeeks, targetKm, calendarId, calendarTitle,
-  ///   source('device_calendar'|'ics'), planSnapshot (เก็บ snapshot ของแผน)
+  /// **บันทึกที่ Path: `users/{userId}/Program/{autoId}`**
+  /// **บันทึก Training รายวันใน Subcollection: `users/{userId}/Program/{programId}/Training/{dateString}`**
   static Future<String> createProgram({
     required String userId,
     required DateTime startDate,
@@ -99,9 +99,32 @@ class ProgramRepo {
     String? calendarTitle,
     required String source, // 'device_calendar' | 'ics'
     required List<List<Map<String, String>>> planSnapshot,
+    required List<Map<String, dynamic>> dailyTrainings, // <-- ข้อมูล Training รายวัน
   }) async {
-    final doc = _programCol.doc(); // auto id
-    await doc.set({
+    // 1. กำหนด Reference สำหรับ Program Subcollection
+    final programColRef = _userCol.doc(userId).collection('Program');
+
+    // 2. สร้างเอกสาร Program หลัก (ใช้ auto id)
+    final programDocRef = programColRef.doc(); // auto id
+    final programId = programDocRef.id;
+
+    // 3. สร้าง Firestore Batch สำหรับบันทึกหลายรายการ
+    final batch = FirebaseFirestore.instance.batch();
+
+    // **แก้ไขข้อผิดพลาด Nested arrays are not supported**
+    // 4. สร้าง List ของ Map ที่เป็นรายการฝึกซ้อมทั้งหมดแบบเรียบ (Flat List)
+    final List<Map<String, dynamic>> flatPlanSnapshot = dailyTrainings.map((data) {
+      return {
+        'week': data['week'],
+        'dayOfWeek': data['dayOfWeek'],
+        'type': data['type'],
+        'distance': data['distance'],
+        'time': data['time'],
+      };
+    }).toList();
+
+    // 5. ตั้งค่าเอกสาร Program
+    batch.set(programDocRef, {
       'userId': userId,
       'startDate': Timestamp.fromDate(startDate),
       'totalWeeks': totalWeeks,
@@ -109,24 +132,50 @@ class ProgramRepo {
       'calendarId': calendarId,
       'calendarTitle': calendarTitle,
       'source': source,
-      'status': 'active', // เผื่ออนาคตจะมี completed / cancelled
+      'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
-      // เก็บ snapshot ของแผนแบบ lightweight (string ๆ)
-      'planSnapshot': planSnapshot,
+      'planSnapshot': flatPlanSnapshot, // ใช้ Flat List
     });
-    return doc.id;
+
+    // 6. เตรียม Subcollection สำหรับ Training
+    final trainingColRef = programDocRef.collection('Training');
+    final dateFormatter = DateFormat('dd-MM-yyyy'); // Format สำหรับ Document ID
+
+    // 7. เพิ่มรายการ Training รายวันทั้งหมดลงใน Batch
+    for (final trainingData in dailyTrainings) {
+      final DateTime date = trainingData['date'];
+      final String dateId = dateFormatter.format(date); // แปลงวันที่เป็น String ID (YYYY-MM-DD)
+
+      // กำหนด Document ID เป็นวันที่
+      final trainingDocRef = trainingColRef.doc(dateId); 
+      
+      // สร้างข้อมูลสำหรับบันทึก
+      final data = Map<String, dynamic>.from(trainingData);
+      data['date'] = Timestamp.fromDate(date); // เก็บวันที่จริงเป็น Timestamp
+      data['loggedAt'] = FieldValue.serverTimestamp();
+
+      batch.set(trainingDocRef, data);
+    }
+
+    // 8. ดำเนินการบันทึก Batch
+    await batch.commit();
+
+    return programId;
   }
 
   /// ดึงโปรแกรมล่าสุดของผู้ใช้ (active ตัวล่าสุด)
-  static Future<QueryDocumentSnapshot<Map<String, dynamic>>?> fetchLatestActive(
+  static Future<DocumentSnapshot<Map<String, dynamic>>?> fetchLatestActive(
     String userId,
   ) async {
-    final q = await _programCol
-        .where('userId', isEqualTo: userId)
+    final programColRef = _userCol.doc(userId).collection('Program');
+    
+    final q = await programColRef
         .where('status', isEqualTo: 'active')
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
     return q.docs.isEmpty ? null : q.docs.first;
+    
   }
 }
+
