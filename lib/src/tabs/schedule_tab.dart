@@ -148,7 +148,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
       initialDate: now,
       firstDate: now.subtract(const Duration(days: 1)),
       lastDate: now.add(const Duration(days: 365)),
-      helpText: 'เลือก “วันเริ่มโปรแกรม”',
+      helpText: 'เลือก "วันเริ่มโปรแกรม"',
       confirmText: 'เพิ่มลงปฏิทิน',
       cancelText: 'ยกเลิก',
     );
@@ -180,7 +180,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
         await cal.bulkInsertToDeviceCalendar(
           calendarId: calendarIdToSave,
           week1StartDate: startDate,
-          totalWeeks: _selectedWeeks, // ← ใช้จำนวนสัปดาห์ที่เลือก
+          totalWeeks: _selectedWeeks,
           targetKm: widget.targetKm,
           planByWeeks: _allWeeks,
           startHour: 8,
@@ -194,7 +194,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
         source = 'ics';
         await cal.exportTrainingPlanToICS(
           week1StartDate: startDate,
-          totalWeeks: _selectedWeeks, // ← ใช้จำนวนสัปดาห์ที่เลือก
+          totalWeeks: _selectedWeeks,
           targetKm: widget.targetKm,
           planByWeeks: _allWeeks,
           startHour: 8,
@@ -208,7 +208,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
       await ProgramRepo.createProgram(
         userId: userId,
         startDate: startDate,
-        totalWeeks: _selectedWeeks, // ← ใช้จำนวนสัปดาห์ที่เลือก
+        totalWeeks: _selectedWeeks,
         targetKm: widget.targetKm,
         calendarId: calendarIdToSave,
         calendarTitle: calendarTitleToSave,
@@ -226,84 +226,185 @@ class _ScheduleTabState extends State<ScheduleTab> {
   // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
-    final plan =
-        _weekPlan(_weekIndex.clamp(0, _selectedWeeks - 1)); // แผนของสัปดาห์นี้
-    final cs = Theme.of(context).colorScheme;
+    final plan = _weekPlan(_weekIndex.clamp(0, _selectedWeeks - 1));
+    final theme = Theme.of(context);
 
-    return SafeArea(
-      child: Column(
-        children: [
-          // Header card
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-            child: Card(
-              elevation: 1.5,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFFAFAFA),
+            Color(0xFFF5F5F5),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header card
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                      color: Colors.black.withOpacity(.06),
+                    ),
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _ReadonlyPill(
-                      icon: Icons.bookmark_added_outlined,
+                      icon: Icons.bookmark_border,
                       text: _calendarTitle,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
                     // ---- ตัวเลือกจำนวนสัปดาห์ 8 / 12 / 16 ----
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                    Row(
                       children: [8, 12, 16].map((w) {
                         final selected = _selectedWeeks == w;
-                        return ChoiceChip(
-                          label: Text('$w สัปดาห์'),
-                          selected: selected,
-                          onSelected: (v) {
-                            if (!v) return;
-                            setState(() {
-                              _selectedWeeks = w;
-                              _weekIndex = _weekIndex.clamp(0, _selectedWeeks - 1);
-                            });
-                          },
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedWeeks = w;
+                                  _weekIndex =
+                                      _weekIndex.clamp(0, _selectedWeeks - 1);
+                                });
+                              },
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  gradient: selected
+                                      ? const LinearGradient(
+                                          colors: [
+                                            Color(0xFFFF6F00),
+                                            Color(0xFFFF8F00),
+                                          ],
+                                        )
+                                      : null,
+                                  color: selected ? null : const Color(0xFFF5F5F5),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: selected
+                                      ? null
+                                      : Border.all(
+                                          color: const Color(0xFFE0E0E0),
+                                          width: 1.5,
+                                        ),
+                                  boxShadow: selected
+                                      ? [
+                                          BoxShadow(
+                                            color: const Color(0xFFFF6F00)
+                                                .withOpacity(.25),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$w สัปดาห์',
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: selected
+                                          ? Colors.white
+                                          : const Color(0xFF757575),
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         );
                       }).toList(),
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
                     // ปุ่มแอคชัน
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _chooseOrCreateCalendar,
-                            icon: const Icon(Icons.library_add),
-                            label: const Text('เลือก/สร้างเล่ม'),
-                            style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                              textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w600),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
+                          child: Container(
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFFF6F00),
+                                width: 2,
+                              ),
+                            ),
+                            child: OutlinedButton.icon(
+                              onPressed: _chooseOrCreateCalendar,
+                              icon: const Icon(Icons.calendar_today, size: 20),
+                              label: const Text('เลือกเล่ม'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFFF6F00),
+                                backgroundColor: Colors.transparent,
+                                side: BorderSide.none,
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => _addWholeProgramToCalendar(context),
-                            icon: const Icon(Icons.event_available),
-                            label: const Text('เพิ่มทั้งโปรแกรม'),
-                            style: FilledButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                              textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w700),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
+                          child: Container(
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFFF6F00),
+                                  Color(0xFFFF8F00),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFFFF6F00).withOpacity(.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  _addWholeProgramToCalendar(context),
+                              icon: const Icon(Icons.add_circle_outline,
+                                  size: 20),
+                              label: const Text('เพิ่มโปรแกรม'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -313,103 +414,186 @@ class _ScheduleTabState extends State<ScheduleTab> {
                 ),
               ),
             ),
-          ),
 
-          // สลับสัปดาห์
-          if (_selectedWeeks > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => setState(() =>
-                        _weekIndex =
-                            (_weekIndex - 1).clamp(0, _selectedWeeks - 1)),
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text('สัปดาห์ที่ ${_weekIndex + 1}/${_selectedWeeks}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => setState(() =>
-                        _weekIndex =
-                            (_weekIndex + 1).clamp(0, _selectedWeeks - 1)),
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              ),
-            ),
-
-          const SizedBox(height: 8),
-
-          // ตารางรายการ
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              itemCount: plan.length,
-              separatorBuilder: (_, __) => const Divider(height: 24),
-              itemBuilder: (context, index) {
-                final row = plan[index];
-                final day = row['day'] ?? '';
-                final note = row['note'] ?? '';
-                final dist = row['dist'] ?? '-';
-                final time = row['time'] ?? '-';
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 54,
-                      child: Text(
-                        day,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: cs.onSurface,
-                            ),
+            // สลับสัปดาห์
+            if (_selectedWeeks > 1)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 12,
+                        offset: const Offset(0, 2),
+                        color: Colors.black.withOpacity(.04),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            note.isEmpty ? '-' : note,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6F00).withOpacity(.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          onPressed: () => setState(() => _weekIndex =
+                              (_weekIndex - 1).clamp(0, _selectedWeeks - 1)),
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: Color(0xFFFF6F00),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
+                        ),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            'สัปดาห์ที่ ${_weekIndex + 1}/$_selectedWeeks',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF212121),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6F00).withOpacity(.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          onPressed: () => setState(() => _weekIndex =
+                              (_weekIndex + 1).clamp(0, _selectedWeeks - 1)),
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFFFF6F00),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 8),
+
+            // ตารางรายการ
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                itemCount: plan.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final row = plan[index];
+                  final day = row['day'] ?? '';
+                  final note = row['note'] ?? '';
+                  final dist = row['dist'] ?? '-';
+                  final time = row['time'] ?? '-';
+
+                  final isRest = note.toLowerCase() == 'rest';
+
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: isRest
+                          ? Border.all(
+                              color: const Color(0xFFE0E0E0),
+                              width: 1.5,
+                            )
+                          : null,
+                      boxShadow: isRest
+                          ? null
+                          : [
+                              BoxShadow(
+                                blurRadius: 12,
+                                offset: const Offset(0, 3),
+                                color: Colors.black.withOpacity(.05),
+                              ),
+                            ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: isRest
+                                ? null
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFF6F00),
+                                      Color(0xFFFF8F00),
+                                    ],
+                                  ),
+                            color: isRest ? const Color(0xFFF5F5F5) : null,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              day,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: isRest
+                                    ? const Color(0xFF9E9E9E)
+                                    : Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                  child: _MiniCell(
-                                      headline: 'ระยะทาง', value: dist)),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                  child:
-                                      _MiniCell(headline: 'เวลา', value: time)),
+                              Text(
+                                note.isEmpty ? '-' : note,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: isRest
+                                      ? const Color(0xFF9E9E9E)
+                                      : const Color(0xFF212121),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _MiniCell(
+                                      headline: 'ระยะทาง',
+                                      value: dist,
+                                      isRest: isRest,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _MiniCell(
+                                      headline: 'เวลา',
+                                      value: time,
+                                      isRest: isRest,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -423,27 +607,35 @@ class _ReadonlyPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.55),
+        color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant),
+        border: Border.all(
+          color: const Color(0xFFE0E0E0),
+          width: 1.5,
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: cs.onSurfaceVariant),
-          const SizedBox(width: 8),
+          Icon(
+            icon,
+            size: 20,
+            color: const Color(0xFFFF6F00),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF616161),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ],
@@ -455,29 +647,49 @@ class _ReadonlyPill extends StatelessWidget {
 class _MiniCell extends StatelessWidget {
   final String headline;
   final String value;
-  const _MiniCell({required this.headline, required this.value});
+  final bool isRest;
+  const _MiniCell({
+    required this.headline,
+    required this.value,
+    this.isRest = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.35),
-        borderRadius: BorderRadius.circular(12),
+        color: isRest
+            ? const Color(0xFFFAFAFA)
+            : const Color(0xFFFF6F00).withOpacity(.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isRest
+              ? const Color(0xFFEEEEEE)
+              : const Color(0xFFFF6F00).withOpacity(.15),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(headline,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  )),
+          Text(
+            headline,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: isRest ? const Color(0xFF9E9E9E) : const Color(0xFF757575),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  )),
+          Text(
+            value,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: isRest ? const Color(0xFFBDBDBD) : const Color(0xFF212121),
+              letterSpacing: -0.2,
+            ),
+          ),
         ],
       ),
     );

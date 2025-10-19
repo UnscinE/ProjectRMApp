@@ -10,9 +10,8 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'training_repo.dart';
-// Note: To use the chart, you must add 'fl_chart: ^0.63.0' (or latest)
-// to your pubspec.yaml and run 'flutter pub get'.
-// import 'package:fl_chart/fl_chart.dart'; // <<< Required for actual chart implementation
+
+// =================== ScreenTwo (Styled: Premium Orange) ===================
 
 class ScreenTwo extends StatefulWidget {
   const ScreenTwo({super.key});
@@ -29,9 +28,7 @@ class Vector3 {
 }
 
 class _ScreenTwoState extends State<ScreenTwo> {
-  // Existing State Variables...
-  //String _time = '0.00';
-
+  // --- State เดิมทั้งหมด (ลอจิกเดิม) ---
   HarModelPredictor _predictor = HarModelPredictor();
   final double _goalDistanceKm = 500.0;
   String? _currentProgramId;
@@ -42,42 +39,34 @@ class _ScreenTwoState extends State<ScreenTwo> {
   String _runningType = 'Long Run';
   double _progress = 0.6;
   bool _isTrainning = false;
-  final int _targetSeconds = 180; // 10 minutes target
+  final int _targetSeconds = 180;
 
-  //Stop watch timer variables
   Timer? _timer;
   int _secs = 0;
   bool _running = false;
 
-  // สำหรับ overlay countdown
   int _countdown = 0;
   bool _showOverlay = false;
 
-  // GPS/Speed State
   double _currentSpeed = 0.0; // m/s
   final Location _location = Location();
   StreamSubscription<Position>? _locationSubscription;
 
-  // Target Location
   final double _targetLatitude = 16.4326;
   final double _targetLongitude = 102.8229;
 
-  double _totalDistance = 0.0; // Distance travelled in meters
-  double _distanceToTarget = 0.0; // Distance to the fixed target in meters
-  Position? _lastPosition; // To calculate distance traveled
+  double _totalDistance = 0.0;
+  double _distanceToTarget = 0.0;
+  Position? _lastPosition;
 
-  // Sensor State (Updated to also store magnitude)
   Vector3 _accelerometerData = const Vector3(0, 0, 0);
   Vector3 _gyroscopeData = const Vector3(0, 0, 0);
   double _gForce = 0.0;
 
-  // --- NEW: Data for magnitude charts ---
   final List<double> _accelMagnitudes = [];
   final List<double> _gyroMagnitudes = [];
-  final int _maxDataPoints = 50; // Keep the last 50 data points
+  final int _maxDataPoints = 50;
 
-  // --- NEW: Data for RAW DATA COLLECTION (สำหรับนำไป Feature Extraction ต่อ) ---
-  // รูปแบบ: { 'timestamp': int, 'x': double, 'y': double, 'z': double }
   final List<Map<String, double>> _rawAccelData = [];
   final List<Map<String, double>> _rawGyroData = [];
 
@@ -100,132 +89,89 @@ class _ScreenTwoState extends State<ScreenTwo> {
     super.dispose();
   }
 
-  // --- GPS/Location Methods (for Speed Calculation) ---
-  // Inside _ScreenTwoState
-  // --- GPS/Location Methods (for Speed and Distance Calculation) ---
-  // Inside _ScreenTwoState
-  // --- GPS/Location Methods (for Speed and Distance Calculation) ---
+  // --- GPS/Location Methods (คงเดิม) ---
   Future<void> _initLocationService() async {
     bool serviceEnabled;
-    LocationPermission
-    permissionGranted; // Use LocationPermission from geolocator
+    LocationPermission permissionGranted;
 
-    // 1. ตรวจสอบว่าเปิด location service หรือยัง
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Note: geolocator doesn't have a direct requestService, usually relying on the user
       return Future.error('Location services are disabled.');
     }
 
-    // 2. ขอ permission
     permissionGranted = await Geolocator.checkPermission();
     if (permissionGranted == LocationPermission.denied) {
       permissionGranted = await Geolocator.requestPermission();
       if (permissionGranted == LocationPermission.denied ||
           permissionGranted == LocationPermission.deniedForever) {
-        return Future.error(
-          'Location permissions are denied or denied forever.',
-        );
+        return Future.error('Location permissions are denied or denied forever.');
       }
     }
 
-    // 3. เริ่มรับข้อมูล location stream
-    // We'll use getPositionStream to get real-time updates
-    _locationSubscription =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 1, // Update every 1 meter
-          ),
-        ).listen((Position position) {
-          if (!mounted) return;
+    _locationSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 1,
+      ),
+    ).listen((Position position) {
+      if (!mounted) return;
 
-          setState(() {
-            // 1. Calculate Speed (Geolocator Position object has speed property)
-            _currentSpeed = (position.speed).abs(); // m/s
-            _speed = (_currentSpeed * 3.6).toStringAsFixed(2); // m/s to km/hr
+      setState(() {
+        _currentSpeed = (position.speed).abs();
+        _speed = (_currentSpeed * 3.6).toStringAsFixed(2);
 
-            // 2. Calculate Distance Traveled (Total Distance)
-            if (_lastPosition != null) {
-              final double incrementalDistance = Geolocator.distanceBetween(
-                _lastPosition!.latitude,
-                _lastPosition!.longitude,
-                position.latitude,
-                position.longitude,
-              );
-              _totalDistance += incrementalDistance;
-              // This updates the display variable:
-              _distance = (_totalDistance / 1000); // Display in km
-            }
-
-            _lastPosition = position;
-
-            // 3. Calculate Distance to Target
-            _distanceToTarget = Geolocator.distanceBetween(
-              position.latitude,
-              position.longitude,
-              _targetLatitude,
-              _targetLongitude,
-            );
-
-            _lastPosition = position;
-          });
-
-          debugPrint(
-            'Speed: ${position.speed} m/s, Total Distance: $_totalDistance m, Target Distance: $_distanceToTarget m',
+        if (_lastPosition != null) {
+          final double incrementalDistance = Geolocator.distanceBetween(
+            _lastPosition!.latitude, _lastPosition!.longitude,
+            position.latitude, position.longitude,
           );
-        });
+          _totalDistance += incrementalDistance;
+          _distance = (_totalDistance / 1000);
+        }
+
+        _lastPosition = position;
+
+        _distanceToTarget = Geolocator.distanceBetween(
+          position.latitude, position.longitude,
+          _targetLatitude, _targetLongitude,
+        );
+
+        _lastPosition = position;
+      });
+
+      debugPrint('Speed: ${position.speed} m/s, Total Distance: $_totalDistance m, Target Distance: $_distanceToTarget m');
+    });
   }
 
   Future<void> _recordData() async {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null || _currentProgramId == null) return;
 
-    // ตรวจสอบ User และ Program ID
-    if (user == null || _currentProgramId == null) {
-      print(
-        "❌ Cannot record data: User not logged in or Program ID not found.",
-      );
-      return;
-    }
-
-    // 1. คำนวณสถิติที่จำเป็น
     final String userId = user.uid;
-    // รูปแบบ Document ID: "DD-MM-YYYY" (ใช้ intl.dart)
     final String dateKey =
-        DateTime.now().day.toString().padLeft(2, '0') +
-        '-' +
-        DateTime.now().month.toString().padLeft(2, '0') +
-        '-' +
+        DateTime.now().day.toString().padLeft(2, '0') + '-' +
+        DateTime.now().month.toString().padLeft(2, '0') + '-' +
         DateTime.now().year.toString();
 
-    final double avgSpeedKph =
-        (_totalDistance / _secs) * 3.6; // คำนวณความเร็วเฉลี่ยรวม (m/s -> km/hr)
+    final double avgSpeedKph = (_totalDistance / _secs) * 3.6;
     final Duration totalDuration = Duration(seconds: _secs);
 
-    // คำนวณ Progress Bar (เทียบกับ Goal Distance)
-    // NOTE: ควรหา Total Distance สะสมก่อนหน้ามาบวกด้วย
     final double totalDistanceKm = _totalDistance / 1000.0;
     final double progressPercent = (totalDistanceKm / _goalDistanceKm) * 100;
     final int progressBarValue = progressPercent.clamp(0, 100).round();
 
-    // แปลง Duration เป็น String (HH:MM:SS)
     String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String timeString =
+    final timeString =
         "${twoDigits(totalDuration.inHours)}:${twoDigits(totalDuration.inMinutes.remainder(60))}:${twoDigits(totalDuration.inSeconds.remainder(60))}";
 
-    // 2. กำหนด Reference ของ Firestore
     final trainingRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('Program')
-        .doc(_currentProgramId!) // ใช้ Program ID ที่โหลดมา
-        .collection('Training')
-        .doc(dateKey);
+        .collection('users').doc(userId)
+        .collection('Program').doc(_currentProgramId!)
+        .collection('Training').doc(dateKey);
 
-    // 3. เตรียมข้อมูลที่จะบันทึก
-    final Map<String, dynamic> trainingData = {
+    final data = {
       'date': Timestamp.now(),
-      'activity': _activity, // กิจกรรมสุดท้ายที่ทำนายได้
+      'activity': _activity,
       'distance_km': totalDistanceKm,
       'duration_s': _secs,
       'duration_display': timeString,
@@ -233,118 +179,82 @@ class _ScreenTwoState extends State<ScreenTwo> {
       'progress_bar_percent': progressBarValue,
     };
 
-    // 4. บันทึกข้อมูล
     try {
-      await trainingRef.set(trainingData, SetOptions(merge: true));
-      print(
-        '✅ Training data recorded to $_currentProgramId/$dateKey successfully.',
-      );
+      await trainingRef.set(data, SetOptions(merge: true));
+      debugPrint('✅ Recorded training data');
     } catch (e) {
-      print('❌ Error recording training data: $e');
+      debugPrint('❌ Error: $e');
     }
   }
 
   Future<void> _loadProgramId() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    // เรียกฟังก์ชันดึง Program ID ปัจจุบัน
     final programId = await TrainingRepo.fetchCurrentProgramId(user.uid);
-
-    setState(() {
-      _currentProgramId = programId?.first;
-    });
-
-    if (_currentProgramId != null) {
-      print("✅ Program ID ล่าสุดที่ใช้: $_currentProgramId");
-    } else {
-      print("⚠️ ไม่พบ Program ID ปัจจุบันสำหรับผู้ใช้นี้");
-    }
+    setState(() => _currentProgramId = programId?.first);
   }
 
-  // --- Sensor Methods (Gyroscope and Accelerometer) ---
+  // --- Sensor Methods (คงเดิม) ---
   void _startSensorStreams() {
     final int startTime = DateTime.now().millisecondsSinceEpoch;
-    // Accelerometer (รวมแรงโน้มถ่วง)
-    _accelSubscription =
-        accelerometerEventStream(
-          samplingPeriod: const Duration(milliseconds: 100),
-        ).listen((AccelerometerEvent event) {
-          if (!mounted) return;
 
-          final double totalForce = sqrt(
-            event.x * event.x + event.y * event.y + event.z * event.z,
-          );
+    _accelSubscription = accelerometerEventStream(
+      samplingPeriod: const Duration(milliseconds: 100),
+    ).listen((AccelerometerEvent event) {
+      if (!mounted) return;
 
-          final double currentTime =
-              (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
+      final double totalForce = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+      final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
 
-          _rawAccelData.add({
-            'Time (s)': currentTime,
-            'accelerometer_x': event.x,
-            'accelerometer_y': event.y,
-            'accelerometer_z': event.z,
-          });
+      _rawAccelData.add({
+        'Time (s)': currentTime,
+        'accelerometer_x': event.x,
+        'accelerometer_y': event.y,
+        'accelerometer_z': event.z,
+      });
 
-          // 2. อัปเดต UI
+      setState(() {
+        _accelerometerData = Vector3(event.x, event.y, event.z);
+        _gForce = totalForce / 9.8;
 
-          setState(() {
-            _accelerometerData = Vector3(event.x, event.y, event.z);
-            _gForce = totalForce / 9.8;
+        _accelMagnitudes.add(totalForce);
+        if (_accelMagnitudes.length > _maxDataPoints) {
+          _accelMagnitudes.removeAt(0);
+        }
+      });
+    });
 
-            // NEW: Add magnitude to the list
-            _accelMagnitudes.add(totalForce);
-            if (_accelMagnitudes.length > _maxDataPoints) {
-              _accelMagnitudes.removeAt(0); // Remove oldest data point
-            }
-          });
-        });
+    _gyroSubscription = gyroscopeEventStream(
+      samplingPeriod: const Duration(milliseconds: 100),
+    ).listen((GyroscopeEvent event) {
+      if (!mounted) return;
 
-    // Gyroscope
-    _gyroSubscription =
-        gyroscopeEventStream(
-          samplingPeriod: const Duration(milliseconds: 100),
-        ).listen((GyroscopeEvent event) {
-          if (!mounted) return;
+      final double totalAngularVelocity = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+      final double currentTime = (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
 
-          // Calculate magnitude (total angular velocity)
-          final double totalAngularVelocity = sqrt(
-            event.x * event.x + event.y * event.y + event.z * event.z,
-          );
+      _rawGyroData.add({
+        'Time (s)': currentTime,
+        'gyroscope_x': event.x,
+        'gyroscope_y': event.y,
+        'gyroscope_z': event.z,
+      });
 
-          final double currentTime =
-              (DateTime.now().millisecondsSinceEpoch - startTime) /
-              1000.0; // Time in seconds
-
-          // 1. เก็บข้อมูลดิบสำหรับ Feature Extraction
-          _rawGyroData.add({
-            'Time (s)': currentTime,
-            'gyroscope_x': event.x,
-            'gyroscope_y': event.y,
-            'gyroscope_z': event.z,
-          });
-
-          // 2. อัปเดต UI
-          setState(() {
-            _gyroscopeData = Vector3(event.x, event.y, event.z);
-
-            // NEW: Add magnitude to the list
-            _gyroMagnitudes.add(totalAngularVelocity);
-            if (_gyroMagnitudes.length > _maxDataPoints) {
-              _gyroMagnitudes.removeAt(0); // Remove oldest data point
-            }
-          });
-        });
+      setState(() {
+        _gyroscopeData = Vector3(event.x, event.y, event.z);
+        _gyroMagnitudes.add(totalAngularVelocity);
+        if (_gyroMagnitudes.length > _maxDataPoints) {
+          _gyroMagnitudes.removeAt(0);
+        }
+      });
+    });
   }
 
-  // Start Timer
+  // --- Stopwatch (คงเดิม) ---
   void _start_Stopwatch() {
     if (_running) return;
     _running = true;
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() {
-        _secs++;
-      });
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() => _secs++);
     });
     setState(() {});
   }
@@ -369,23 +279,13 @@ class _ScreenTwoState extends State<ScreenTwo> {
     return '$m:$s';
   }
 
-  //Calculate percentage for progress bar
   double _calculatePercentage() {
-    if (_targetSeconds <= 0) {
-      return 0.0; // Avoid division by zero
-    }
-
-    // Calculate the percentage
-    double percentage = _secs / _targetSeconds;
-
-    // Clamp the value between 0.0 and 1.0 (0% to 100%)
-    return percentage.clamp(0.0, 1.0);
+    if (_targetSeconds <= 0) return 0.0;
+    return (_secs / _targetSeconds).clamp(0.0, 1.0);
   }
 
-  // Existing methods...
   void _startCountdown() {
     if (_showOverlay) return;
-
     setState(() {
       _countdown = 3;
       _showOverlay = true;
@@ -393,29 +293,23 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
     Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_countdown > 1) {
-        setState(() {
-          _countdown--;
-        });
+        setState(() => _countdown--);
       } else {
         timer.cancel();
-        setState(() {
-          _showOverlay = false;
-        });
+        setState(() => _showOverlay = false);
         _startTraining();
       }
     });
   }
 
   void _startTraining() {
-    // รีเซ็ตข้อมูลก่อนเริ่มใหม่
     _rawAccelData.clear();
     _rawGyroData.clear();
     _totalDistance = 0.0;
     _lastPosition = null;
     _distance = 0.0;
-    _secs = 0; // ต้องรีเซ็ตนาฬิกา
+    _secs = 0;
 
-    // เริ่ม Sensor Streams (100 Hz)
     _startSensorStreams();
 
     Timer.periodic(const Duration(milliseconds: 500), (t) {
@@ -423,29 +317,20 @@ class _ScreenTwoState extends State<ScreenTwo> {
         t.cancel();
         return;
       }
-
       final features = extractFeaturesDart(_rawAccelData, _rawGyroData);
       if (features.isNotEmpty) {
         final prediction = _predictor.predict(features);
-        setState(() {
-          _activity = prediction; // อัปเดต UI ด้วยผลการทำนาย
-        });
+        setState(() => _activity = prediction);
       }
     });
 
     _isTrainning = true;
-    setState(() {
-      _statusMessage = 'Training in progress...';
-    });
-    print('🏃 Training Started!');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Training started!')));
+    setState(() => _statusMessage = 'Training in progress...');
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Training started!')));
     _start_Stopwatch();
     _initLocationService();
   }
 
-  // --- NEW: Stop Training Method (สำหรับหยุดเซสชันและดูข้อมูล) ---
   void _stopTraining() {
     _isTrainning = false;
     _stop_Stopwatch();
@@ -453,76 +338,52 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _gyroSubscription?.cancel();
     _locationSubscription?.cancel();
 
-    print('🛑 Training Stopped!');
-    print('Total Accelerometer Samples: ${_rawAccelData.length}');
-    print('Total Gyroscope Samples: ${_rawGyroData.length}');
-
-    // **จุดนี้คือจุดที่สามารถนำ _rawAccelData และ _rawGyroData ไปบันทึกไฟล์ CSV**
-    // (ต้องมีการใช้แพ็กเกจเช่น path_provider และ dart:io เพื่อบันทึกไฟล์จริง)
-    // ตัวอย่างการแสดงข้อมูลที่บันทึก
-    // final String csvContent = convertDataToCsv();
-    // print(csvContent);
-
-    // รีเซ็ตข้อมูลดิบหลังจบเซสชัน
     _rawAccelData.clear();
     _rawGyroData.clear();
 
     _recordData();
-    setState(() {
-      _statusMessage = 'Training session ended.';
-    });
+    setState(() => _statusMessage = 'Training session ended.');
   }
 
-  // สำหรับการคำนวณ Skewness และ Kurtosis แบบง่าย (ตัวอย่างเท่านั้น)
-  double calculateMean(List<double> values) {
-    if (values.isEmpty) return 0.0;
-    return values.reduce((a, b) => a + b) / values.length;
-  }
+  // --- Stats helpers (คงเดิม) ---
+  double calculateMean(List<double> values) =>
+      values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
 
   double calculateStdDev(List<double> values, double mean) {
     if (values.length < 2) return 0.0;
-    final variance =
-        values.map((x) => pow(x - mean, 2)).reduce((a, b) => a + b) /
-        (values.length - 1);
+    final variance = values.map((x) => pow(x - mean, 2))
+        .reduce((a, b) => a + b) / (values.length - 1);
     return sqrt(variance);
   }
 
-  // Skewness: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu3 / Sigma^3)
   double calculateSkewness(List<double> values, double mean, double std) {
     if (std == 0.0) return 0.0;
     double sum = 0.0;
     for (var x in values) {
       sum += pow((x - mean) / std, 3);
     }
-    return sum / values.length; // Approximate sample skewness (Mu3)
+    return sum / values.length;
   }
 
-  // Kurtosis: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu4 / Sigma^4 - 3)
   double calculateKurtosis(List<double> values, double mean, double std) {
     if (std == 0.0) return 0.0;
     double sum = 0.0;
     for (var x in values) {
       sum += pow((x - mean) / std, 4);
     }
-    return (sum / values.length) - 3.0; // Sample kurtosis (Excess Kurtosis)
+    return (sum / values.length) - 3.0;
   }
 
-  // ฟังก์ชันสำหรับดึง Features ทั้งหมด (เทียบเท่าโค้ด Python ของคุณ)
   Map<String, double> extractFeaturesDart(
     List<Map<String, double>> accelData,
     List<Map<String, double>> gyroData,
   ) {
-    const windowSize = 100; // 1 วินาที
+    const windowSize = 100;
+    if (accelData.length < windowSize || gyroData.length < windowSize) return {};
 
-    if (accelData.length < windowSize || gyroData.length < windowSize) {
-      return {}; // ยังไม่ครบ window
-    }
-
-    // ใช้ข้อมูล 100 samples ล่าสุด (The window)
     final accelWindow = accelData.sublist(accelData.length - windowSize);
     final gyroWindow = gyroData.sublist(gyroData.length - windowSize);
 
-    // 1. เตรียม lists ของแกน
     final ax = accelWindow.map((d) => d['accelerometer_x']!).toList();
     final ay = accelWindow.map((d) => d['accelerometer_y']!).toList();
     final az = accelWindow.map((d) => d['accelerometer_z']!).toList();
@@ -530,27 +391,18 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final gy = gyroWindow.map((d) => d['gyroscope_y']!).toList();
     final gz = gyroWindow.map((d) => d['gyroscope_z']!).toList();
 
-    // 2. คำนวณ Magnitude (สำหรับ Magnitude Mean)
     final accelMag = accelWindow
-        .map(
-          (d) => sqrt(
-            pow(d['accelerometer_x']!, 2) +
-                pow(d['accelerometer_y']!, 2) +
-                pow(d['accelerometer_z']!, 2),
-          ),
-        )
+        .map((d) => sqrt(pow(d['accelerometer_x']!, 2) +
+            pow(d['accelerometer_y']!, 2) +
+            pow(d['accelerometer_z']!, 2)))
         .toList();
     final gyroMag = gyroWindow
-        .map(
-          (d) => sqrt(
-            pow(d['gyroscope_x']!, 2) +
-                pow(d['gyroscope_y']!, 2) +
-                pow(d['gyroscope_z']!, 2),
-          ),
-        )
+        .map((d) => sqrt(pow(d['gyroscope_x']!, 2) +
+            pow(d['gyroscope_y']!, 2) +
+            pow(d['gyroscope_z']!, 2)))
         .toList();
 
-    final Map<String, List<double>> dataStreams = {
+    final streams = {
       'accelerometer_x': ax,
       'accelerometer_y': ay,
       'accelerometer_z': az,
@@ -560,30 +412,22 @@ class _ScreenTwoState extends State<ScreenTwo> {
     };
 
     final features = <String, double>{};
-
-    // 3. คำนวณสถิติหลัก
-    for (var entry in dataStreams.entries) {
-      final col = entry.key;
-      final list = entry.value;
-      final mean = calculateMean(list);
-      final std = calculateStdDev(list, mean);
-
-      features['${col}_mean'] = mean;
-      features['${col}_std'] = std;
-      features['${col}_max'] = list.reduce(max);
-      features['${col}_min'] = list.reduce(min);
-      features['${col}_skew'] = calculateSkewness(list, mean, std);
-      features['${col}_kurtosis'] = calculateKurtosis(list, mean, std);
+    for (var e in streams.entries) {
+      final mean = calculateMean(e.value);
+      final std = calculateStdDev(e.value, mean);
+      features['${e.key}_mean'] = mean;
+      features['${e.key}_std'] = std;
+      features['${e.key}_max'] = e.value.reduce(max);
+      features['${e.key}_min'] = e.value.reduce(min);
+      features['${e.key}_skew'] = calculateSkewness(e.value, mean, std);
+      features['${e.key}_kurtosis'] = calculateKurtosis(e.value, mean, std);
     }
-
-    // 4. คำนวณ Magnitude Mean
     features['acceleration_magnitude_mean'] = calculateMean(accelMag);
     features['gyroscope_magnitude_mean'] = calculateMean(gyroMag);
-
     return features;
   }
 
-  // --- NEW: Magnitude Chart Widget (Placeholder/Simplified for Fl-Chart) ---
+  // --- Magnitude Chart (แต่งโทนส้ม + เส้น/ตัวอักษร) ---
   Widget _buildMagnitudeChart({
     required String title,
     required List<double> dataPoints,
@@ -591,60 +435,65 @@ class _ScreenTwoState extends State<ScreenTwo> {
     required IconData icon,
     required String unit,
   }) {
-    // Determine bounds for the chart
-    final latestMagnitude = dataPoints.isEmpty ? 0.0 : dataPoints.last;
+    final latest = dataPoints.isEmpty ? 0.0 : dataPoints.last;
     final double maxData = dataPoints.isEmpty ? 1.0 : dataPoints.reduce(max);
-    // Use a sensible upper bound (e.g., 10 m/s² for Accel, or just maxData + 10%)
     final double maxY = (maxData * 1.1).clamp(1.0, 50.0);
 
-    // Convert List<double> to List<FlSpot> for fl_chart
-    final List<FlSpot> spots = dataPoints.asMap().entries.map((entry) {
-      // X-value is the index (time point), Y-value is the magnitude
-      return FlSpot(entry.key.toDouble(), entry.value);
-    }).toList();
+    final List<FlSpot> spots = dataPoints.asMap().entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
+        .toList();
 
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.only(
-          top: 15.0,
-          bottom: 5.0,
-          left: 5.0,
-          right: 15.0,
-        ),
+        padding: const EdgeInsets.only(top: 15, bottom: 8, left: 8, right: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 28),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
                   ),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF6F00).withOpacity(.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const Divider(height: 15, color: Colors.grey),
-            // Display latest magnitude (numerical representation)
-            Padding(
-              padding: const EdgeInsets.only(left: 8.0),
-              child: Text(
-                'Current: ${latestMagnitude.toStringAsFixed(2)} $unit',
+                child: Icon(icon, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                  color: Color(0xFF212121),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            const Divider(height: 12, color: Color(0xFFECECEC)),
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, bottom: 8),
+              child: Text(
+                'Current: ${latest.toStringAsFixed(2)} $unit',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF212121),
                 ),
               ),
             ),
-
-            const SizedBox(height: 10),
-
             Expanded(
               child: spots.isEmpty
                   ? Center(
@@ -656,33 +505,24 @@ class _ScreenTwoState extends State<ScreenTwo> {
                   : LineChart(
                       LineChartData(
                         minX: 0,
-                        maxX:
-                            _maxDataPoints.toDouble() -
-                            1, // Full width of data window
+                        maxX: _maxDataPoints.toDouble() - 1,
                         minY: 0,
                         maxY: maxY,
                         titlesData: const FlTitlesData(
                           show: true,
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ), // Hide X axis titles
+                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                         ),
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
-                          getDrawingHorizontalLine: (value) {
-                            return const FlLine(
-                              color: Colors.grey,
-                              strokeWidth: 0.5,
-                              dashArray: [5, 5],
-                            );
-                          },
+                          getDrawingHorizontalLine: (_) => const FlLine(
+                            color: Color(0xFFE0E0E0),
+                            strokeWidth: 0.5,
+                            dashArray: [5, 5],
+                          ),
                         ),
                         borderData: FlBorderData(show: false),
                         lineBarsData: [
@@ -692,10 +532,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
                             color: color,
                             barWidth: 3,
                             isStrokeCapRound: true,
-                            dotData: const FlDotData(show: false), // Hide dots
+                            dotData: const FlDotData(show: false),
                             belowBarData: BarAreaData(
                               show: true,
-                              color: color.withOpacity(0.3),
+                              color: color.withOpacity(0.28),
                             ),
                           ),
                         ],
@@ -708,247 +548,237 @@ class _ScreenTwoState extends State<ScreenTwo> {
     );
   }
 
-  // Existing build method...
+  // --- Build (แต่งสไตล์/ตัวอักษรให้แน่นขึ้นแบบตัวอย่าง) ---
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final double currentProgress = _calculatePercentage();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Training Details'),
-        backgroundColor: const Color.fromARGB(255, 233, 233, 233),
+        title: Text(
+          'Training Details',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
+            color: const Color(0xFF212121),
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF212121),
+        elevation: 0,
       ),
-      backgroundColor: const Color.fromARGB(255, 252, 252, 252),
-
-      body: SingleChildScrollView(
-        child: Stack(
-          children: [
-            // ===== เนื้อหาหลัก =====
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ... (Training Progress Card เดิม)
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      elevation: 4,
-                      color: Colors.white,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _runningType,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Training Progress',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 10),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: LinearProgressIndicator(
-                                value: currentProgress,
-                                minHeight: 12,
-                                backgroundColor: Colors.grey[300],
-                                valueColor: const AlwaysStoppedAnimation(
-                                  Colors.blue,
+      // พื้นหลังไล่เฉดเหมือนตัวอย่าง
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Stack(
+            children: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // การ์ด Progress
+                      Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                        elevation: 4,
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _runningType,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                  color: const Color(0xFF212121),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${(currentProgress * 100).toStringAsFixed(0)}%',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            const Divider(height: 24, thickness: 1),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    height: 250,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE3F2FD),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        _buildDetailRow(
-                                          'Time',
-                                          _time,
-                                          _targetSeconds.toString(),
-                                        ),
-                                        _buildDetailRow(
-                                          'Distance',
-                                          _distance.toStringAsFixed(2),
-                                          '${_distance.toStringAsFixed(2)} / 500 km',
-                                        ),
-                                      ],
+                              const SizedBox(height: 12),
+                              Text(
+                                'Training Progress',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF212121),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                  value: currentProgress,
+                                  minHeight: 12,
+                                  backgroundColor: const Color(0xFFECECEC),
+                                  valueColor: const AlwaysStoppedAnimation(Color(0xFFFF6F00)),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${(currentProgress * 100).toStringAsFixed(0)}%',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF616161),
+                                ),
+                              ),
+                              const Divider(height: 24, thickness: 1, color: Color(0xFFECECEC)),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 250,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF3E0),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          _buildDetailRow('Time', _time, _targetSeconds.toString()),
+                                          _buildDetailRow('Distance', _distance.toStringAsFixed(2), '${_distance.toStringAsFixed(2)} / 500 km'),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Container(
-                                    height: 250,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE3F2FD),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        _buildDetailRow(
-                                          'Activity',
-                                          _activity,
-                                          '',
-                                        ),
-                                        _buildDetailRow(
-                                          'Speed',
-                                          '$_speed km/hr',
-                                          '',
-                                        ),
-                                      ],
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Container(
+                                      height: 250,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF3E0),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          _buildDetailRow('Activity', _activity, ''),
+                                          _buildDetailRow('Speed', '$_speed km/hr', ''),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // ===== SENSOR DATA CARDS (NOW GRAPHS) =====
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 250,
-                                child: _buildMagnitudeChart(
-                                  title: 'Accel. Magnitude',
-                                  dataPoints: _accelMagnitudes,
-                                  unit: 'm/s²',
-                                  icon: Icons.speed_rounded,
-                                  color: Colors.green,
-                                ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: SizedBox(
-                                height: 250,
-                                child: _buildMagnitudeChart(
-                                  title: 'Gyro. Magnitude',
-                                  dataPoints: _gyroMagnitudes,
-                                  unit: 'rad/s',
-                                  icon: Icons.rotate_right_rounded,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // ===== ปุ่ม Start/Stop (ปรับปรุง) =====
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                      child: ElevatedButton(
-                        onPressed: _isTrainning
-                            ? _stopTraining
-                            : _startCountdown,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          backgroundColor: _isTrainning
-                              ? Colors.redAccent
-                              : Colors.lightBlueAccent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          _isTrainning ? 'STOP' : 'Start',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            color: Colors.white,
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
 
-            // ===== Overlay Countdown remains the same =====
-            if (_showOverlay)
-              Container(
-                color: Colors.black54,
-                child: Center(
-                  child: Text(
-                    _countdown > 0 ? '$_countdown' : 'GO!',
-                    style: const TextStyle(
-                      fontSize: 100,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          blurRadius: 10,
-                          color: Colors.blueAccent,
-                          offset: Offset(2, 2),
+                      const SizedBox(height: 24),
+
+                      // การ์ดกราฟ (โทนส้ม)
+                      Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 250,
+                                  child: _buildMagnitudeChart(
+                                    title: 'Accel. Magnitude',
+                                    dataPoints: _accelMagnitudes,
+                                    unit: 'm/s²',
+                                    icon: Icons.speed_rounded,
+                                    color: const Color(0xFFFF6F00),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: SizedBox(
+                                  height: 250,
+                                  child: _buildMagnitudeChart(
+                                    title: 'Gyro. Magnitude',
+                                    dataPoints: _gyroMagnitudes,
+                                    unit: 'rad/s',
+                                    icon: Icons.rotate_right_rounded,
+                                    color: const Color(0xFFFF6F00),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // ปุ่ม Start/Stop (ส้ม/แดง)
+                      Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 4,
+                        child: ElevatedButton(
+                          onPressed: _isTrainning ? _stopTraining : _startCountdown,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            backgroundColor: _isTrainning ? Colors.redAccent : const Color(0xFFFF6F00),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            _isTrainning ? 'STOP' : 'Start',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
+
+              // Overlay Countdown (แค่เปลี่ยนสีเงาเป็นส้ม)
+              if (_showOverlay)
+                Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Text(
+                      _countdown > 0 ? '$_countdown' : 'GO!',
+                      style: const TextStyle(
+                        fontSize: 100,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 10,
+                            color: Color(0xFFFF8F00),
+                            offset: Offset(2, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // UI Build row for time, distance, activity, speed (remains the same)
+  // --- แค่ปรับน้ำหนัก/ขนาดข้อความให้แน่นแบบตัวอย่าง (ไม่เปลี่ยนลอจิก) ---
   Widget _buildDetailRow(String title, String value, String subValue) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Column(
@@ -956,34 +786,29 @@ class _ScreenTwoState extends State<ScreenTwo> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+              color: const Color(0xFF212121),
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF616161),
             ),
           ),
           if (subValue.isNotEmpty)
             Text(
               subValue,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF9E9E9E),
+                fontWeight: FontWeight.w600,
+              ),
             ),
         ],
       ),
     );
   }
-
-  // The original _buildDataCard is removed/replaced by _buildMagnitudeChart,
-  // but keeping a placeholder if needed for other data.
-  // Widget _buildDataCard({
-  //   required String title,
-  //   ...
-  // }) { /* ... */ }
 }
