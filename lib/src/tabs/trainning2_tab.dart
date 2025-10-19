@@ -1,9 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:location/location.dart';
+import 'package:rmapp/src/training_repo.dart';
 import 'package:rmapp/src/trainingtask_page.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:rmapp/src/trainingtask_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class Trainning2Tab extends StatefulWidget {
   const Trainning2Tab({super.key});
@@ -13,99 +18,99 @@ class Trainning2Tab extends StatefulWidget {
 }
 
 class _Trainning2TabState extends State<Trainning2Tab> {
-  double _currentSpeed = 0.0; // m/s
-  final Location _location = Location();
-  StreamSubscription<LocationData>? _locationSubscription;
-
-  // --- Sensor State ---
-  Vector3 _accelerometerData = const Vector3(0, 0, 0);
-  Vector3 _gyroscopeData = const Vector3(0, 0, 0);
-  double _gForce = 0.0; // g value (≈ total acceleration / 9.8)
-
-  StreamSubscription<AccelerometerEvent>? _accelSubscription;
-  StreamSubscription<GyroscopeEvent>? _gyroSubscription;
+  String _Runningtarget = '-'; // เปลี่ยนชื่อให้ตรงกับ Field ใน Firestore
+  String _Timetarget = '-'; // เปลี่ยนชื่อให้ตรงกับ Field ใน Firestore
+  String _Runningtype = '-'; // เปลี่ยนชื่อให้ตรงกับ Field ใน Firestore
+  String? _currentProgramId; // เก็บ Program ID ที่ใช้งานอยู่
 
   @override
   void initState() {
     super.initState();
+    _loadProgramId(); // เรียกใช้ฟังก์ชันใหม่
   }
 
   @override
   void dispose() {
-    _locationSubscription?.cancel();
-    _accelSubscription?.cancel();
-    _gyroSubscription?.cancel();
     super.dispose();
   }
 
-  Future<void> _initLocationService() async {
-    bool serviceEnabled;
-    PermissionStatus permissionGranted;
+  Future<void> _loadProgramId() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    // 1. ตรวจสอบว่าเปิด location service หรือยัง
-    serviceEnabled = await _location.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await _location.requestService();
-      if (!serviceEnabled) return;
-    }
+    // เรียกฟังก์ชันดึง Program ID ปัจจุบัน
+    final programId = await TrainingRepo.fetchCurrentProgramId(user.uid);
 
-    // 2. ขอ permission
-    permissionGranted = await _location.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await _location.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) return;
-    }
-
-    // 3. ตั้งค่า location update ให้แม่นยำ
-    await _location.changeSettings(
-      accuracy: LocationAccuracy.high,
-      interval: 1000, // update ทุก 1 วินาที
-      distanceFilter: 0,
-    );
-
-    // 4. เริ่มรับข้อมูล location
-    _locationSubscription = _location.onLocationChanged.listen((
-      LocationData data,
-    ) {
-      if (!mounted) return;
-      setState(() {
-        _currentSpeed = (data.speed ?? 0.0).abs(); // m/s
-      });
-      debugPrint(
-        'Speed: ${data.speed} m/s, Lat: ${data.latitude}, Lng: ${data.longitude}',
-      );
+    setState(() {
+      _currentProgramId = programId?.first;
     });
+
+    if (_currentProgramId != null) {
+      print("✅ Program ID ล่าสุดที่ใช้: $_currentProgramId");
+      getTodaydata();
+    } else {
+      print("⚠️ ไม่พบ Program ID ปัจจุบันสำหรับผู้ใช้นี้");
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // --- Sensor Methods (Gyroscope and Accelerometer) ---
-  void _startSensorStreams() {
-    // Accelerometer (รวมแรงโน้มถ่วง)
-    _accelSubscription =
-        accelerometerEventStream(
-          samplingPeriod: const Duration(milliseconds: 100),
-        ).listen((AccelerometerEvent event) {
-          if (!mounted) return;
-          // คำนวณแรงรวมทั้งหมด (รวมแรง g)
-          final double totalForce = sqrt(
-            event.x * event.x + event.y * event.y + event.z * event.z,
-          );
-          setState(() {
-            _accelerometerData = Vector3(event.x, event.y, event.z);
-            _gForce = totalForce / 9.8; // แปลงเป็นหน่วย g
-          });
-        });
+  // ========== ฟังก์ชันดึงข้อมูลแผนวันนี้ ==========
+  void getTodaydata() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid;
+    final programId = _currentProgramId;
 
-    // Gyroscope
-    _gyroSubscription =
-        gyroscopeEventStream(
-          samplingPeriod: const Duration(milliseconds: 100),
-        ).listen((GyroscopeEvent event) {
-          if (!mounted) return;
-          setState(() {
-            _gyroscopeData = Vector3(event.x, event.y, event.z);
-          });
+    if (userId == null || programId == null) {
+      // อาจแสดงข้อความว่า "ยังไม่มีโปรแกรมที่ใช้งานอยู่"
+      return;
+    }
+
+    // 1. กำหนด Document ID เป็นวันที่ในรูปแบบ YYYY-MM-DD (ใช้สำหรับ Firestore Document ID)
+    // ⚠️ แก้ไขตรงนี้: เปลี่ยนจาก 'dd-MM-yyyy' เป็น 'yyyy-MM-dd'
+    final now = DateTime.now();
+    final todayId = DateFormat('dd-MM-yyyy').format(now);
+
+    // 2. สร้าง Path ไปยังเอกสาร Training วันนี้
+    // Path: users/{userId}/Program/{programId}/Training/{todayId}
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('Program')
+        .doc(programId)
+        .collection('Training')
+        .doc(todayId); // ใช้ todayId ที่เป็น yyyy-MM-dd
+
+    try {
+      final snapshot = await docRef.get();
+
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+
+        if (!mounted) return;
+        setState(() {
+          // ใช้ชื่อ Field ที่ถูกต้องจาก Firestore
+          _Runningtarget = data['distance'] as String? ?? 'N/A';
+          _Timetarget = data['time'] as String? ?? 'N/A';
+          _Runningtype = data['type'] as String? ?? 'Rest';
         });
+      } else {
+        // กรณีไม่พบแผนของวันนี้
+        if (!mounted) return;
+        setState(() {
+          _Runningtarget = 'N/A';
+          _Timetarget = 'N/A';
+          _Runningtype = 'No Plan';
+        });
+      }
+    } catch (e) {
+      print("Error fetching today's training data: $e");
+      // จัดการข้อผิดพลาด
+      if (!mounted) return;
+      setState(() {
+        _Runningtarget = 'Error';
+        _Timetarget = 'Error';
+        _Runningtype = 'Error';
+      });
+    }
   }
 
   @override
@@ -115,7 +120,6 @@ class _Trainning2TabState extends State<Trainning2Tab> {
     const String distance = "5 km";
     const String time = "3 min";
 
-    final speedKmh = _currentSpeed * 3.6; // แปลง m/s เป็น km/h
     return Scaffold(
       appBar: AppBar(title: const Text('Training 2 Tab')),
       body: Center(
@@ -155,7 +159,7 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                           ),
 
                           Text(
-                            "Long Run",
+                            _Runningtype,
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w500,
@@ -192,7 +196,7 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '50 km',
+                                    _Runningtarget,
                                     style: const TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.bold,
@@ -230,7 +234,7 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '30 min',
+                                    _Timetarget,
                                     style: const TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.bold,

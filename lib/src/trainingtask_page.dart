@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:location/location.dart' hide LocationAccuracy;
 import 'package:geolocator/geolocator.dart';
+import 'package:rmapp/src/modelhandle_backend.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'training_repo.dart';
 // Note: To use the chart, you must add 'fl_chart: ^0.63.0' (or latest)
 // to your pubspec.yaml and run 'flutter pub get'.
 // import 'package:fl_chart/fl_chart.dart'; // <<< Required for actual chart implementation
@@ -27,14 +32,24 @@ class Vector3 {
 class _ScreenTwoState extends State<ScreenTwo> {
   // Existing State Variables...
   //String _time = '0.00';
+
+  HarModelPredictor _predictor = HarModelPredictor();
+
+  final double _goalDistanceKm = 500.0;
+  String? _currentProgramId;
   double _distance = 0;
-  String _activity = 'Walking';
+  String _activity = 'getting data';
   String _speed = '0.00';
   String _statusMessage = 'Training session idle.';
   String _runningType = 'Long Run';
   double _progress = 0.6;
   bool _isTrainning = false;
-  final int _targetSeconds = 180; // 10 minutes target
+
+  String _Runningtarget = '';
+  int _Timetarget = 0; // 10 minutes target (seconds)
+  String _Runningtype = '';
+
+  double _targetDistanceKm = 0.0;
 
   //Stop watch timer variables
   Timer? _timer;
@@ -61,12 +76,16 @@ class _ScreenTwoState extends State<ScreenTwo> {
   // Sensor State (Updated to also store magnitude)
   Vector3 _accelerometerData = const Vector3(0, 0, 0);
   Vector3 _gyroscopeData = const Vector3(0, 0, 0);
-  double _gForce = 0.0;
 
   // --- NEW: Data for magnitude charts ---
   final List<double> _accelMagnitudes = [];
   final List<double> _gyroMagnitudes = [];
   final int _maxDataPoints = 50; // Keep the last 50 data points
+
+  // --- NEW: Data for RAW DATA COLLECTION (สำหรับนำไป Feature Extraction ต่อ) ---
+  // รูปแบบ: { 'timestamp': int, 'x': double, 'y': double, 'z': double }
+  final List<Map<String, double>> _rawAccelData = [];
+  final List<Map<String, double>> _rawGyroData = [];
 
   StreamSubscription<AccelerometerEvent>? _accelSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroSubscription;
@@ -74,6 +93,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
   @override
   void initState() {
     super.initState();
+    _predictor.loadModel();
+    _loadProgramId();
   }
 
   @override
@@ -162,8 +183,172 @@ class _ScreenTwoState extends State<ScreenTwo> {
         });
   }
 
+  Future<void> _recordData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    // 1. Calculate percentage as a value between 0.0 and 1.0
+    final double progress = _calculatePercentage();
+
+    // 2. Convert to an integer percentage (0 to 100)
+    // This is the number you want to store in Firestore
+    final int progressBarValue = (progress * 100)
+        .round(); // 0.5 * 100 = 50.0 -> 50
+    // ตรวจสอบ User และ Program ID
+    if (user == null || _currentProgramId == null) {
+      print(
+        "❌ Cannot record data: User not logged in or Program ID not found.",
+      );
+      return;
+    }
+
+    // 1. คำนวณสถิติที่จำเป็น
+    final String userId = user.uid;
+    // รูปแบบ Document ID: "DD-MM-YYYY" (ใช้ intl.dart)
+    final String dateKey =
+        DateTime.now().day.toString().padLeft(2, '0') +
+        '-' +
+        DateTime.now().month.toString().padLeft(2, '0') +
+        '-' +
+        DateTime.now().year.toString();
+
+    final double avgSpeedKph =
+        (_totalDistance / _secs) * 3.6; // คำนวณความเร็วเฉลี่ยรวม (m/s -> km/hr)
+    final Duration totalDuration = Duration(seconds: _secs);
+
+    // คำนวณ Progress Bar (เทียบกับ Goal Distance)
+    // NOTE: ควรหา Total Distance สะสมก่อนหน้ามาบวกด้วย
+    final double totalDistanceKm = _totalDistance / 1000.0;
+
+    // แปลง Duration เป็น String (HH:MM:SS)
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String timeString =
+        "${twoDigits(totalDuration.inHours)}:${twoDigits(totalDuration.inMinutes.remainder(60))}:${twoDigits(totalDuration.inSeconds.remainder(60))}";
+
+    // 2. กำหนด Reference ของ Firestore
+    final trainingRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('Program')
+        .doc(_currentProgramId!) // ใช้ Program ID ที่โหลดมา
+        .collection('Training')
+        .doc(dateKey);
+
+    // 3. เตรียมข้อมูลที่จะบันทึก
+    final Map<String, dynamic> trainingData = {
+      'date': Timestamp.now(),
+      'activity': _activity, // กิจกรรมสุดท้ายที่ทำนายได้
+      'distance_km': totalDistanceKm,
+      'duration_s': _secs,
+      'duration_display': timeString,
+      'average_speed_kph': avgSpeedKph.toStringAsFixed(2),
+      'progress_bar_percent': progressBarValue,
+
+      //currentProgress
+    };
+    print(progressBarValue);
+
+    // 4. บันทึกข้อมูล
+    try {
+      await trainingRef.set(trainingData, SetOptions(merge: true));
+      print(
+        '✅ Training data recorded to $_currentProgramId/$dateKey successfully.',
+      );
+    } catch (e) {
+      print('❌ Error recording training data: $e');
+    }
+  }
+
+  Future<void> _loadProgramId() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // เรียกฟังก์ชันดึง Program ID ปัจจุบัน
+    final programId = await TrainingRepo.fetchCurrentProgramId(user.uid);
+
+    setState(() {
+      _currentProgramId = programId?.first;
+    });
+
+    if (_currentProgramId != null) {
+      print("✅ Program ID ล่าสุดที่ใช้: $_currentProgramId");
+      getTodaydata();
+    } else {
+      print("⚠️ ไม่พบ Program ID ปัจจุบันสำหรับผู้ใช้นี้");
+    }
+  }
+
+  void getTodaydata() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid;
+    final programId = _currentProgramId;
+
+    if (userId == null || programId == null) {
+      // อาจแสดงข้อความว่า "ยังไม่มีโปรแกรมที่ใช้งานอยู่"
+      return;
+    }
+
+    // 1. กำหนด Document ID เป็นวันที่ในรูปแบบ YYYY-MM-DD (ใช้สำหรับ Firestore Document ID)
+    // ⚠️ แก้ไขตรงนี้: เปลี่ยนจาก 'dd-MM-yyyy' เป็น 'yyyy-MM-dd'
+    final now = DateTime.now();
+    final todayId = DateFormat('dd-MM-yyyy').format(now);
+
+    // 2. สร้าง Path ไปยังเอกสาร Training วันนี้
+    // Path: users/{userId}/Program/{programId}/Training/{todayId}
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('Program')
+        .doc(programId)
+        .collection('Training')
+        .doc(todayId); // ใช้ todayId ที่เป็น yyyy-MM-dd
+
+    try {
+      final snapshot = await docRef.get();
+
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+
+        if (!mounted) return;
+        setState(() {
+          // ใช้ชื่อ Field ที่ถูกต้องจาก Firestore (ปลอดภัยกับชนิดข้อมูลที่หลากหลาย)
+          _Runningtarget = data['distance']?.toString() ?? 'N/A';
+          _Runningtype = data['type']?.toString() ?? 'Rest';
+
+          print(_Runningtarget);
+          // อ่านค่าเวลาเป็นสตริงแล้วกรองให้เหลือเฉพาะตัวเลขก่อนแปลงเป็น int
+          final String timeRaw = data['time']?.toString() ?? '';
+          final String numeric = timeRaw.replaceAll(RegExp(r'[^0-9]'), '');
+          _Timetarget = numeric.isNotEmpty ? int.parse(numeric) : 0;
+
+          final targetString = _Runningtarget.replaceAll(
+            RegExp(r'[^0-9.]'),
+            '',
+          );
+          _targetDistanceKm = double.tryParse(targetString) ?? 0.0;
+        });
+      } else {
+        // กรณีไม่พบแผนของวันนี้
+        if (!mounted) return;
+        setState(() {
+          _Runningtarget = 'N/A';
+          _Timetarget = 0;
+          _Runningtype = 'No Plan';
+        });
+      }
+    } catch (e) {
+      print("Error fetching today's training data: $e");
+      // จัดการข้อผิดพลาด
+      if (!mounted) return;
+      setState(() {
+        _Runningtarget = 'Error';
+        _Timetarget = 0;
+        _Runningtype = 'Error';
+      });
+    }
+  }
+
   // --- Sensor Methods (Gyroscope and Accelerometer) ---
   void _startSensorStreams() {
+    final int startTime = DateTime.now().millisecondsSinceEpoch;
     // Accelerometer (รวมแรงโน้มถ่วง)
     _accelSubscription =
         accelerometerEventStream(
@@ -175,9 +360,20 @@ class _ScreenTwoState extends State<ScreenTwo> {
             event.x * event.x + event.y * event.y + event.z * event.z,
           );
 
+          final double currentTime =
+              (DateTime.now().millisecondsSinceEpoch - startTime) / 1000.0;
+
+          _rawAccelData.add({
+            'Time (s)': currentTime,
+            'accelerometer_x': event.x,
+            'accelerometer_y': event.y,
+            'accelerometer_z': event.z,
+          });
+
+          // 2. อัปเดต UI
+
           setState(() {
             _accelerometerData = Vector3(event.x, event.y, event.z);
-            _gForce = totalForce / 9.8;
 
             // NEW: Add magnitude to the list
             _accelMagnitudes.add(totalForce);
@@ -199,6 +395,19 @@ class _ScreenTwoState extends State<ScreenTwo> {
             event.x * event.x + event.y * event.y + event.z * event.z,
           );
 
+          final double currentTime =
+              (DateTime.now().millisecondsSinceEpoch - startTime) /
+              1000.0; // Time in seconds
+
+          // 1. เก็บข้อมูลดิบสำหรับ Feature Extraction
+          _rawGyroData.add({
+            'Time (s)': currentTime,
+            'gyroscope_x': event.x,
+            'gyroscope_y': event.y,
+            'gyroscope_z': event.z,
+          });
+
+          // 2. อัปเดต UI
           setState(() {
             _gyroscopeData = Vector3(event.x, event.y, event.z);
 
@@ -218,6 +427,19 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       setState(() {
         _secs++;
+
+        // ⚠️ NEW: ตรวจสอบเงื่อนไขการหยุดการฝึกซ้อม
+        // ถ้าความคืบหน้ารวมถึง 1.0 (100%) ให้หยุดการฝึกซ้อม
+        if (_distance >= _targetDistanceKm) {
+          t.cancel(); // หยุด Timer ของ Stopwatch
+          _stopTraining(); // เรียกฟังก์ชันหยุดการฝึกซ้อมทั้งหมด
+          // อาจเพิ่ม SnackBar แจ้งเตือนว่า "Goal Reached!"
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🎉 Training Goal Reached! Session Ended.'),
+            ),
+          );
+        }
       });
     });
     setState(() {});
@@ -244,16 +466,34 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   //Calculate percentage for progress bar
-  double _calculatePercentage() {
-    if (_targetSeconds <= 0) {
-      return 0.0; // Avoid division by zero
+  double _calculatePercentage({
+    double weightTime = 0.5,
+    double weightDistance = 0.5,
+  }) {
+    // 1. คำนวณความคืบหน้าด้านเวลา (Time Percentage)
+    double timePercentage = 0.0;
+    final targetSecs = _Timetarget * 60; // แปลงนาทีเป้าหมายเป็นวินาที
+
+    if (targetSecs > 0) {
+      // ความคืบหน้าเวลา = วินาทีที่วิ่งได้ / วินาทีเป้าหมาย
+      timePercentage = _secs / targetSecs;
     }
 
-    // Calculate the percentage
-    double percentage = _secs / _targetSeconds;
+    // 2. คำนวณความคืบหน้าด้านระยะทาง (Distance Percentage)
+    double distancePercentage = 0.0;
 
-    // Clamp the value between 0.0 and 1.0 (0% to 100%)
-    return percentage.clamp(0.0, 1.0);
+    if (_targetDistanceKm > 0) {
+      // ความคืบหน้าระยะทาง = ระยะทางที่วิ่งได้ / ระยะทางเป้าหมาย
+      distancePercentage = _distance / _targetDistanceKm;
+    }
+
+    // 3. รวมและถัวเฉลี่ยความคืบหน้าทั้งสอง
+    double overallPercentage =
+        (timePercentage.clamp(0.0, 1.0) * weightTime +
+        distancePercentage.clamp(0.0, 1.0) * weightDistance);
+
+    // 4. จำกัดค่าให้อยู่ในช่วง 0.0 ถึง 1.0
+    return overallPercentage.clamp(0.0, 1.0);
   }
 
   // Existing methods...
@@ -281,14 +521,180 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   void _startTraining() {
+    // รีเซ็ตข้อมูลก่อนเริ่มใหม่
+    _rawAccelData.clear();
+    _rawGyroData.clear();
+    _totalDistance = 0.0;
+    _lastPosition = null;
+    _distance = 0.0;
+    _secs = 0; // ต้องรีเซ็ตนาฬิกา
+
+    // เริ่ม Sensor Streams (100 Hz)
+    _startSensorStreams();
+
+    Timer.periodic(const Duration(milliseconds: 500), (t) {
+      if (!_isTrainning) {
+        t.cancel();
+        return;
+      }
+
+      final features = extractFeaturesDart(_rawAccelData, _rawGyroData);
+      if (features.isNotEmpty) {
+        final prediction = _predictor.predict(features);
+        setState(() {
+          _activity = prediction; // อัปเดต UI ด้วยผลการทำนาย
+        });
+      }
+    });
+
     _isTrainning = true;
+    setState(() {
+      _statusMessage = 'Training in progress...';
+    });
     print('🏃 Training Started!');
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Training started!')));
     _start_Stopwatch();
-    _startSensorStreams();
     _initLocationService();
+  }
+
+  // --- NEW: Stop Training Method (สำหรับหยุดเซสชันและดูข้อมูล) ---
+  void _stopTraining() {
+    _isTrainning = false;
+    _stop_Stopwatch();
+    _accelSubscription?.cancel();
+    _gyroSubscription?.cancel();
+    _locationSubscription?.cancel();
+
+    print('🛑 Training Stopped!');
+    print('Total Accelerometer Samples: ${_rawAccelData.length}');
+    print('Total Gyroscope Samples: ${_rawGyroData.length}');
+
+    // **จุดนี้คือจุดที่สามารถนำ _rawAccelData และ _rawGyroData ไปบันทึกไฟล์ CSV**
+    // (ต้องมีการใช้แพ็กเกจเช่น path_provider และ dart:io เพื่อบันทึกไฟล์จริง)
+    // ตัวอย่างการแสดงข้อมูลที่บันทึก
+    // final String csvContent = convertDataToCsv();
+    // print(csvContent);
+
+    // รีเซ็ตข้อมูลดิบหลังจบเซสชัน
+    _rawAccelData.clear();
+    _rawGyroData.clear();
+
+    _recordData();
+    setState(() {
+      _statusMessage = 'Training session ended.';
+    });
+  }
+
+  // สำหรับการคำนวณ Skewness และ Kurtosis แบบง่าย (ตัวอย่างเท่านั้น)
+  double calculateMean(List<double> values) {
+    if (values.isEmpty) return 0.0;
+    return values.reduce((a, b) => a + b) / values.length;
+  }
+
+  double calculateStdDev(List<double> values, double mean) {
+    if (values.length < 2) return 0.0;
+    final variance =
+        values.map((x) => pow(x - mean, 2)).reduce((a, b) => a + b) /
+        (values.length - 1);
+    return sqrt(variance);
+  }
+
+  // Skewness: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu3 / Sigma^3)
+  double calculateSkewness(List<double> values, double mean, double std) {
+    if (std == 0.0) return 0.0;
+    double sum = 0.0;
+    for (var x in values) {
+      sum += pow((x - mean) / std, 3);
+    }
+    return sum / values.length; // Approximate sample skewness (Mu3)
+  }
+
+  // Kurtosis: ต้องการ math helper ที่ซับซ้อนขึ้น (Mu4 / Sigma^4 - 3)
+  double calculateKurtosis(List<double> values, double mean, double std) {
+    if (std == 0.0) return 0.0;
+    double sum = 0.0;
+    for (var x in values) {
+      sum += pow((x - mean) / std, 4);
+    }
+    return (sum / values.length) - 3.0; // Sample kurtosis (Excess Kurtosis)
+  }
+
+  // ฟังก์ชันสำหรับดึง Features ทั้งหมด (เทียบเท่าโค้ด Python ของคุณ)
+  Map<String, double> extractFeaturesDart(
+    List<Map<String, double>> accelData,
+    List<Map<String, double>> gyroData,
+  ) {
+    const windowSize = 100; // 1 วินาที
+
+    if (accelData.length < windowSize || gyroData.length < windowSize) {
+      return {}; // ยังไม่ครบ window
+    }
+
+    // ใช้ข้อมูล 100 samples ล่าสุด (The window)
+    final accelWindow = accelData.sublist(accelData.length - windowSize);
+    final gyroWindow = gyroData.sublist(gyroData.length - windowSize);
+
+    // 1. เตรียม lists ของแกน
+    final ax = accelWindow.map((d) => d['accelerometer_x']!).toList();
+    final ay = accelWindow.map((d) => d['accelerometer_y']!).toList();
+    final az = accelWindow.map((d) => d['accelerometer_z']!).toList();
+    final gx = gyroWindow.map((d) => d['gyroscope_x']!).toList();
+    final gy = gyroWindow.map((d) => d['gyroscope_y']!).toList();
+    final gz = gyroWindow.map((d) => d['gyroscope_z']!).toList();
+
+    // 2. คำนวณ Magnitude (สำหรับ Magnitude Mean)
+    final accelMag = accelWindow
+        .map(
+          (d) => sqrt(
+            pow(d['accelerometer_x']!, 2) +
+                pow(d['accelerometer_y']!, 2) +
+                pow(d['accelerometer_z']!, 2),
+          ),
+        )
+        .toList();
+    final gyroMag = gyroWindow
+        .map(
+          (d) => sqrt(
+            pow(d['gyroscope_x']!, 2) +
+                pow(d['gyroscope_y']!, 2) +
+                pow(d['gyroscope_z']!, 2),
+          ),
+        )
+        .toList();
+
+    final Map<String, List<double>> dataStreams = {
+      'accelerometer_x': ax,
+      'accelerometer_y': ay,
+      'accelerometer_z': az,
+      'gyroscope_x': gx,
+      'gyroscope_y': gy,
+      'gyroscope_z': gz,
+    };
+
+    final features = <String, double>{};
+
+    // 3. คำนวณสถิติหลัก
+    for (var entry in dataStreams.entries) {
+      final col = entry.key;
+      final list = entry.value;
+      final mean = calculateMean(list);
+      final std = calculateStdDev(list, mean);
+
+      features['${col}_mean'] = mean;
+      features['${col}_std'] = std;
+      features['${col}_max'] = list.reduce(max);
+      features['${col}_min'] = list.reduce(min);
+      features['${col}_skew'] = calculateSkewness(list, mean, std);
+      features['${col}_kurtosis'] = calculateKurtosis(list, mean, std);
+    }
+
+    // 4. คำนวณ Magnitude Mean
+    features['acceleration_magnitude_mean'] = calculateMean(accelMag);
+    features['gyroscope_magnitude_mean'] = calculateMean(gyroMag);
+
+    return features;
   }
 
   // --- NEW: Magnitude Chart Widget (Placeholder/Simplified for Fl-Chart) ---
@@ -331,7 +737,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
@@ -427,220 +833,230 @@ class _ScreenTwoState extends State<ScreenTwo> {
         backgroundColor: const Color.fromARGB(255, 233, 233, 233),
       ),
       backgroundColor: const Color.fromARGB(255, 252, 252, 252),
-      body: Stack(
-        children: [
-          // ===== เนื้อหาหลัก =====
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ... (Training Progress Card remains the same)
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    elevation: 4,
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _runningType,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Training Progress',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 10),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: currentProgress,
-                              minHeight: 12,
-                              backgroundColor: Colors.grey[300],
-                              valueColor: const AlwaysStoppedAnimation(
-                                Colors.blue,
+
+      body: SingleChildScrollView(
+        child: Stack(
+          children: [
+            // ===== เนื้อหาหลัก =====
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ... (Training Progress Card เดิม)
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      elevation: 4,
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _runningType,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${(currentProgress * 100).toStringAsFixed(0)}%',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const Divider(height: 24, thickness: 1),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: 250,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE3F2FD),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildDetailRow(
-                                        'Time',
-                                        _time,
-                                        _targetSeconds.toString(),
-                                      ),
-                                      _buildDetailRow(
-                                        'Distance',
-                                        _distance.toStringAsFixed(2),
-                                        '${_distance.toStringAsFixed(2)} / 500 km',
-                                      ),
-                                    ],
-                                  ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Training Progress',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: currentProgress,
+                                minHeight: 12,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: const AlwaysStoppedAnimation(
+                                  Colors.blue,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Container(
-                                  height: 250,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE3F2FD),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildDetailRow(
-                                        'Activity',
-                                        _activity,
-                                        '',
-                                      ),
-                                      _buildDetailRow(
-                                        'Speed',
-                                        '$_speed km/hr',
-                                        '',
-                                      ),
-                                    ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${(currentProgress * 100).toStringAsFixed(0)}%',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const Divider(height: 24, thickness: 1),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    height: 250,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE3F2FD),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        _buildDetailRow(
+                                          'Time',
+                                          _time,
+                                          '${_Timetarget.toString()} Min',
+                                        ),
+                                        _buildDetailRow(
+                                          'Distance',
+                                          _distance.toStringAsFixed(2),
+                                          '${_distance.toStringAsFixed(2)} / $_Runningtarget',
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ===== SENSOR DATA CARDS (NOW GRAPHS) =====
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 250,
-                              child: _buildMagnitudeChart(
-                                title: 'Accel. Magnitude (m/s²)',
-                                dataPoints: _accelMagnitudes,
-                                unit: 'm/s²',
-                                icon: Icons.speed_rounded, // Changed icon
-                                color: Colors.green,
-                              ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Container(
+                                    height: 250,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE3F2FD),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        _buildDetailRow(
+                                          'Activity',
+                                          _activity,
+                                          '',
+                                        ),
+                                        _buildDetailRow(
+                                          'Speed',
+                                          '$_speed km/hr',
+                                          '',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: SizedBox(
-                              height: 250,
-                              child: _buildMagnitudeChart(
-                                title: 'Gyro. Magnitude (rad/s)',
-                                dataPoints: _gyroMagnitudes,
-                                unit: 'rad/s',
-                                icon:
-                                    Icons.rotate_right_rounded, // Changed icon
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ===== ปุ่ม Start =====
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
-                    child: ElevatedButton(
-                      onPressed: _startCountdown,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        backgroundColor: Colors.lightBlueAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          ],
                         ),
                       ),
-                      child: const Text(
-                        'Start',
-                        style: TextStyle(fontSize: 24, color: Colors.white),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // ===== SENSOR DATA CARDS (NOW GRAPHS) =====
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 250,
+                                child: _buildMagnitudeChart(
+                                  title: 'Accel. Magnitude',
+                                  dataPoints: _accelMagnitudes,
+                                  unit: 'm/s²',
+                                  icon: Icons.speed_rounded,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: SizedBox(
+                                height: 250,
+                                child: _buildMagnitudeChart(
+                                  title: 'Gyro. Magnitude',
+                                  dataPoints: _gyroMagnitudes,
+                                  unit: 'rad/s',
+                                  icon: Icons.rotate_right_rounded,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
 
-          // ===== Overlay Countdown remains the same =====
-          if (_showOverlay)
-            Container(
-              color: Colors.black54,
-              child: Center(
-                child: Text(
-                  _countdown > 0 ? '$_countdown' : 'GO!',
-                  style: const TextStyle(
-                    fontSize: 100,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 10,
-                        color: Colors.blueAccent,
-                        offset: Offset(2, 2),
+                    const SizedBox(height: 24),
+
+                    // ===== ปุ่ม Start/Stop (ปรับปรุง) =====
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
+                      elevation: 4,
+                      child: ElevatedButton(
+                        onPressed: _isTrainning
+                            ? _stopTraining
+                            : _startCountdown,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          backgroundColor: _isTrainning
+                              ? Colors.redAccent
+                              : Colors.lightBlueAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          _isTrainning ? 'STOP' : 'Start',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-        ],
+
+            // ===== Overlay Countdown remains the same =====
+            if (_showOverlay)
+              Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Text(
+                    _countdown > 0 ? '$_countdown' : 'GO!',
+                    style: const TextStyle(
+                      fontSize: 100,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 10,
+                          color: Colors.blueAccent,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
