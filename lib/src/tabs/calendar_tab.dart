@@ -6,12 +6,12 @@ class CalendarTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final firstDay = DateTime(now.year, now.month, 1);
     final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
     final theme = Theme.of(context);
 
     // mock เปอร์เซ็นต์ 0.0..1.0 ในแต่ละวัน
-    final percents = List<double>.generate(daysInMonth, (i) => ((i + 3) % 10) / 10);
+    final percents =
+        List<double>.generate(daysInMonth, (i) => ((i + 3) % 10) / 10);
 
     return Container(
       decoration: const BoxDecoration(
@@ -41,7 +41,8 @@ class CalendarTab extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
@@ -72,7 +73,8 @@ class CalendarTab extends StatelessWidget {
 
               // หัววัน
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
@@ -121,11 +123,13 @@ class CalendarTab extends StatelessWidget {
                     ],
                   ),
                   child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 7,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 0.85,
+                      // ↓ เพิ่มความสูงของ cell (ยิ่งค่าน้อย ยิ่งสูง)
+                      childAspectRatio: 0.75,
                     ),
                     itemCount: daysInMonth,
                     itemBuilder: (context, i) {
@@ -161,69 +165,82 @@ class CalendarTab extends StatelessWidget {
                           boxShadow: isToday
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFFFF6F00).withOpacity(.3),
+                                    color: const Color(0xFFFF6F00)
+                                        .withOpacity(.3),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
                                 ]
                               : null,
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '$day',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: isToday
-                                    ? Colors.white
-                                    : hasActivity
-                                        ? const Color(0xFF212121)
-                                        : const Color(0xFFBDBDBD),
-                                letterSpacing: -0.3,
-                              ),
+                        // ↓ กันล้นอัตโนมัติ
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 6),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '$day',
+                                  style:
+                                      theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: isToday
+                                        ? Colors.white
+                                        : hasActivity
+                                            ? const Color(0xFF212121)
+                                            : const Color(0xFFBDBDBD),
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                if (hasActivity && !isToday) ...[
+                                  const SizedBox(height: 4),
+                                  SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        CircularProgressIndicator(
+                                          value: pct,
+                                          strokeWidth: 2.5,
+                                          backgroundColor:
+                                              const Color(0xFFEEEEEE),
+                                          valueColor:
+                                              const AlwaysStoppedAnimation<
+                                                  Color>(
+                                            Color(0xFFFF6F00),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${(pct * 100).toInt()}%',
+                                          style: theme
+                                              .textTheme.labelSmall
+                                              ?.copyWith(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF757575),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else if (isToday) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            if (hasActivity && !isToday) ...[
-                              const SizedBox(height: 4),
-                              SizedBox(
-                                width: 32,
-                                height: 32,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      value: pct,
-                                      strokeWidth: 3,
-                                      backgroundColor:
-                                          const Color(0xFFEEEEEE),
-                                      valueColor:
-                                          const AlwaysStoppedAnimation<Color>(
-                                        Color(0xFFFF6F00),
-                                      ),
-                                    ),
-                                    Text(
-                                      '${(pct * 100).toInt()}%',
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF757575),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ] else if (isToday) ...[
-                              const SizedBox(height: 4),
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
                       );
                     },
@@ -253,7 +270,8 @@ class CalendarTab extends StatelessWidget {
                     _StatItem(
                       icon: Icons.check_circle,
                       label: 'เสร็จแล้ว',
-                      value: '${percents.where((p) => p > 0.8).length}',
+                      value:
+                          '${percents.where((p) => p > 0.8).length}',
                       color: const Color(0xFF10B981),
                     ),
                     Container(
@@ -264,7 +282,8 @@ class CalendarTab extends StatelessWidget {
                     _StatItem(
                       icon: Icons.trending_up,
                       label: 'กำลังฝึก',
-                      value: '${percents.where((p) => p > 0.1 && p <= 0.8).length}',
+                      value:
+                          '${percents.where((p) => p > 0.1 && p <= 0.8).length}',
                       color: const Color(0xFFFF6F00),
                     ),
                     Container(
@@ -275,7 +294,8 @@ class CalendarTab extends StatelessWidget {
                     _StatItem(
                       icon: Icons.schedule,
                       label: 'รอฝึก',
-                      value: '${percents.where((p) => p <= 0.1).length}',
+                      value:
+                          '${percents.where((p) => p <= 0.1).length}',
                       color: const Color(0xFF9E9E9E),
                     ),
                   ],

@@ -110,7 +110,6 @@ class _DashboardTabState extends State<DashboardTab> {
         devcal.RetrieveEventsParams(
           startDate: tzStart,
           endDate: tzEnd,
-          // includeOccurrences: true,  // <-- ลบออกถ้าฟ้องแดง
         ),
       );
 
@@ -666,6 +665,7 @@ class _TodayPlanCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 🔧 แก้ Overflow: ใช้ Expanded/Flexible + ellipsis
           Row(
             children: [
               Container(
@@ -701,61 +701,74 @@ class _TodayPlanCard extends StatelessWidget {
                   color: const Color(0xFF212121),
                 ),
               ),
-              const Spacer(),
-              if (calendarTitle != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: const Color(0xFFE0E0E0),
-                    ),
-                  ),
-                  child: Text(
-                    calendarTitle!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: const Color(0xFF757575),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              if (onRefresh != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFFF6F00),
-                        Color(0xFFFF8F00),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6F00).withOpacity(.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+              const SizedBox(width: 12),
+              // ทั้งบล็อกด้านขวา (ป้ายชื่อเล่ม + ปุ่มรีเฟรช) ให้กินพื้นที่ที่เหลือ
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (calendarTitle != null)
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFFE0E0E0),
+                            ),
+                          ),
+                          child: Text(
+                            calendarTitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: const Color(0xFF757575),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (onRefresh != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFFFF6F00),
+                              Color(0xFFFF8F00),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFF6F00).withOpacity(.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'รีเฟรชจากปฏิทิน',
+                          icon: const Icon(
+                            Icons.refresh,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          onPressed: onRefresh,
+                        ),
                       ),
                     ],
-                  ),
-                  child: IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'รีเฟรชจากปฏิทิน',
-                    icon: const Icon(
-                      Icons.refresh,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    onPressed: onRefresh,
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ],
           ),
+
           const SizedBox(height: 18),
 
           if (loading)
