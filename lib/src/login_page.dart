@@ -278,10 +278,7 @@ class _LoginPageState extends State<LoginPage> {
                               child: const Text('สร้างบัญชีใหม่'),
                             ),
                             const SizedBox(width: 6),
-                            TextButton(
-                              onPressed: _guestLogin,
-                              child: const Text('Guest'),
-                            ),
+                            
                           ],
                         ),
                       ],
