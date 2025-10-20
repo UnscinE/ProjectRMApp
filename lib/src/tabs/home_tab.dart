@@ -198,24 +198,24 @@ class _DashboardTabState extends State<DashboardTab> {
             const SizedBox(height: 22),
 
             // KPI 3 ช่อง
-            Row(
-              children: const [
-                _KpiTile(
-                  icon: Icons.route, title: 'ระยะทาง',
-                  valueTop: '5.00', valueBottom: 'กม.', color: Color(0xFFFF6F00),
-                ),
-                SizedBox(width: 12),
-                _KpiTile(
-                  icon: Icons.speed, title: 'เพซเฉลี่ย',
-                  valueTop: '6:11', valueBottom: '/Km', color: Color(0xFFF57C00),
-                ),
-                SizedBox(width: 12),
-                _KpiTile(
-                  icon: Icons.schedule, title: 'เวลารวม',
-                  valueTop: '30:59', valueBottom: 'นาที', color: Color(0xFFFF9800),
-                ),
-              ],
-            ),
+            // Row(
+            //   children: const [
+            //     _KpiTile(
+            //       icon: Icons.route, title: 'ระยะทาง',
+            //       valueTop: '5.00', valueBottom: 'กม.', color: Color(0xFFFF6F00),
+            //     ),
+            //     SizedBox(width: 12),
+            //     _KpiTile(
+            //       icon: Icons.speed, title: 'เพซเฉลี่ย',
+            //       valueTop: '6:11', valueBottom: '/Km', color: Color(0xFFF57C00),
+            //     ),
+            //     SizedBox(width: 12),
+            //     _KpiTile(
+            //       icon: Icons.schedule, title: 'เวลารวม',
+            //       valueTop: '30:59', valueBottom: 'นาที', color: Color(0xFFFF9800),
+            //     ),
+            //   ],
+            // ),
 
             const SizedBox(height: 28),
 
