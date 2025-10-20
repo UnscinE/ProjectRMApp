@@ -1,5 +1,5 @@
 // lib/src/widgets/calendar_helper.dart
-import 'dart:async';            // <-- ✅ เพิ่มอันนี้
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -26,14 +26,22 @@ String _escapeICS(String input) {
 
 int _dayIndex(String day) {
   switch (day.toLowerCase()) {
-    case 'mon': return 1;
-    case 'tue': return 2;
-    case 'wed': return 3;
-    case 'thu': return 4;
-    case 'fri': return 5;
-    case 'sat': return 6;
-    case 'sun': return 7;
-    default: return 1;
+    case 'mon':
+      return 1;
+    case 'tue':
+      return 2;
+    case 'wed':
+      return 3;
+    case 'thu':
+      return 4;
+    case 'fri':
+      return 5;
+    case 'sat':
+      return 6;
+    case 'sun':
+      return 7;
+    default:
+      return 1;
   }
 }
 
@@ -91,9 +99,8 @@ Future<void> exportTrainingPlanToICS({
       final endLocal = startLocal.add(Duration(minutes: _guessMinutes(timeTxt)));
       final uid = '${startLocal.millisecondsSinceEpoch}-$w-$day';
 
-      final title = note.isEmpty || note.toLowerCase() == 'rest'
-          ? 'ฝึกวิ่ง $dist'
-          : '$note • $dist';
+      final title =
+          note.isEmpty || note.toLowerCase() == 'rest' ? 'ฝึกวิ่ง $dist' : '$note • $dist';
 
       final descLines = <String>[
         'โปรแกรมวิ่ง $targetKm กม.',
@@ -118,12 +125,14 @@ Future<void> exportTrainingPlanToICS({
   final ics = buffer.toString();
 
   if (kIsWeb) {
-    final dataUrl = 'data:text/calendar;charset=utf-8,${Uri.encodeComponent(ics)}';
+    final dataUrl =
+        'data:text/calendar;charset=utf-8,${Uri.encodeComponent(ics)}';
     await launchUrlString(dataUrl, mode: LaunchMode.externalApplication);
     return;
   }
 
-  final filename = 'training_plan_${DateTime.now().millisecondsSinceEpoch}.ics';
+  final filename =
+      'training_plan_${DateTime.now().millisecondsSinceEpoch}.ics';
   File file;
 
   try {
@@ -152,7 +161,8 @@ Future<void> openGoogleCalendarImportPage() async {
 }
 
 Future<void> openGoogleCalendarCreateCalendarPage() async {
-  const url = 'https://calendar.google.com/calendar/u/0/r/settings/createcalendar';
+  const url =
+      'https://calendar.google.com/calendar/u/0/r/settings/createcalendar';
   await launchUrlString(url, mode: LaunchMode.externalApplication);
 }
 
@@ -162,8 +172,8 @@ Future<void> addStartProgramToCalendar({
   required int targetKm,
 }) async {
   final title = 'เริ่มโปรแกรมวิ่ง $targetKm กม.';
-  final desc  = 'โปรแกรมฝึกวิ่ง $targetKm กม. ระยะเวลา $trainingWeeks สัปดาห์';
-  final endDate  = startDate.add(const Duration(hours: 1));
+  final desc = 'โปรแกรมฝึกวิ่ง $targetKm กม. ระยะเวลา $trainingWeeks สัปดาห์';
+  final endDate = startDate.add(const Duration(hours: 1));
   final recurEnd = startDate.add(Duration(days: 7 * (trainingWeeks - 1)));
 
   if (!kIsWeb) {
@@ -189,8 +199,7 @@ Future<void> addStartProgramToCalendar({
       '${dt.year}${two(dt.month)}${two(dt.day)}T${two(dt.hour)}${two(dt.minute)}00';
   final dates = '${fmt(startDate)}/${fmt(endDate)}';
 
-  final url =
-      'https://calendar.google.com/calendar/render?action=TEMPLATE'
+  final url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
       '&text=${Uri.encodeComponent(title)}'
       '&details=${Uri.encodeComponent('$desc\\n(นัดหมายซ้ำรายสัปดาห์)')}'
       '&dates=$dates';
@@ -228,14 +237,13 @@ Future<List<devcal.Calendar>> getWritableCalendars() async {
       (calsResult.data ?? <devcal.Calendar>[])
           .where((devcal.Calendar c) => c.isReadOnly != true)
           .toList()
-        ..sort((a, b) =>
-            ('${a.accountName ?? ''}${a.name ?? ''}')
-                .compareTo('${b.accountName ?? ''}${b.name ?? ''}'));
+        ..sort((a, b) => ('${a.accountName ?? ''}${a.name ?? ''}')
+            .compareTo('${b.accountName ?? ''}${b.name ?? ''}'));
 
   return calendars;
 }
 
-/// dialog เลือกเล่ม (มีปุ่ม Refresh / เปิดแอป Calendar / Auto-scan)
+/// dialog เลือกเล่ม (แต่งโทนส้มพรีเมียม + แก้ overflow)
 Future<String?> pickCalendarIdDialog(BuildContext context) async {
   Future<List<devcal.Calendar>> _load() async {
     try {
@@ -248,7 +256,6 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
   // โหลดรอบแรก
   List<devcal.Calendar> calendars = await _load();
 
-  // ⬇️ showDialog คืน Future<String?>
   final result = await showDialog<String>(
     context: context,
     barrierDismissible: true,
@@ -283,102 +290,246 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
       return StatefulBuilder(
         builder: (ctx, setState) {
           final hasAny = calendars.isNotEmpty;
+          final size = MediaQuery.of(ctx).size;
 
-          return SimpleDialog(
-            titlePadding: const EdgeInsets.only(left: 16, right: 8, top: 12, bottom: 0),
-            contentPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-            title: Row(
-              children: [
-                const Expanded(child: Text('เลือกเล่มปฏิทิน')),
-                IconButton(
-                  tooltip: 'รีเฟรชรายชื่อ',
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () => _refresh(setState),
-                ),
-              ],
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
-            children: [
-              if (!hasAny)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('ยังไม่พบเล่ม (ลองกดรีเฟรช หรือเปิด Google Calendar แล้วกลับมา)'),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: () => _startAutoScan(setState),
-                        icon: const Icon(Icons.search),
-                        label: Text(
-                          isScanning
-                              ? 'เริ่มค้นหาเล่มใหม่อัตโนมัติ… (${scannedSec}s)'
-                              : 'เริ่มค้นหาเล่มใหม่อัตโนมัติ (30 วินาที)',
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                // กัน overflow: สูงสุด 70% ของจอ
+                maxHeight: size.height * 0.7,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // หัวเรื่อง + รีเฟรช
+                    Row(
+                      children: [
+                        const SizedBox(width: 4),
+                        const Text(
+                          'เลือกเล่มปฏิทิน',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                            color: Color(0xFF212121),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                        const Spacer(),
+                        Ink(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF6F00).withOpacity(.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            tooltip: 'รีเฟรชรายชื่อ',
+                            onPressed: () => _refresh(setState),
+                            icon: const Icon(Icons.refresh, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
 
-              for (final c in calendars)
-                SimpleDialogOption(
-                  onPressed: () => Navigator.pop(ctx, c.id),
-                  child: Text(
-                    '${c.name ?? 'Calendar'}'
-                    '${(c.accountName ?? '').isNotEmpty ? ' • ${c.accountName}' : ''}',
-                  ),
-                ),
+                    // เนื้อหาเลื่อนแนวตั้ง
+                    Expanded(
+                      child: hasAny
+                          ? ListView.separated(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              itemCount: calendars.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 8),
+                              itemBuilder: (context, i) {
+                                final c = calendars[i];
+                                final title = (c.name ?? 'Calendar').trim();
+                                final sub = (c.accountName ?? '').trim();
 
-              const Divider(),
+                                return InkWell(
+                                  borderRadius: BorderRadius.circular(14),
+                                  onTap: () => Navigator.pop(ctx, c.id),
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF9FAFB),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    ),
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      leading: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                                          ),
+                                          borderRadius: BorderRadius.circular(10),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFFFF6F00).withOpacity(.25),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(Icons.event, color: Colors.white, size: 18),
+                                      ),
+                                      title: Text(
+                                        title,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF212121),
+                                        ),
+                                      ),
+                                      subtitle: sub.isNotEmpty
+                                          ? Text(
+                                              sub,
+                                              style: const TextStyle(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF757575),
+                                              ),
+                                            )
+                                          : null,
+                                      trailing: const Icon(Icons.chevron_right, color: Color(0xFFBDBDBD)),
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'ยังไม่พบเล่ม (ลองกดรีเฟรช หรือเปิด Google Calendar แล้วกลับมา)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF616161),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _startAutoScan(setState),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFF6F00),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                                    ),
+                                    icon: const Icon(Icons.search, size: 18),
+                                    label: Text(
+                                      isScanning
+                                          ? 'เริ่มค้นหาเล่มใหม่อัตโนมัติ… (${scannedSec}s)'
+                                          : 'เริ่มค้นหาเล่มใหม่อัตโนมัติ (30 วินาที)',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
 
-              SimpleDialogOption(
-                onPressed: () async {
-                  const url = 'https://calendar.google.com/calendar/';
-                  await launchUrlString(url, mode: LaunchMode.externalApplication);
-                },
-                child: const Row(
-                  children: [
-                    Icon(Icons.open_in_new, size: 18),
-                    SizedBox(width: 8),
-                    Text('เปิดแอป Calendar (ช่วยกระตุ้นซิงก์)'),
+                    const Divider(height: 20, color: Color(0xFFECECEC)),
+
+                    // Action rows (เปิดแอป / สร้างเล่ม / นำเข้า .ics)
+                    _CalActionRow(
+                      icon: Icons.open_in_new,
+                      label: 'เปิดแอป Calendar (ช่วยกระตุ้นซิงก์)',
+                      onTap: () async {
+                        const url = 'https://calendar.google.com/calendar/';
+                        await launchUrlString(url, mode: LaunchMode.externalApplication);
+                      },
+                    ),
+                    _CalActionRow(
+                      icon: Icons.add_box_outlined,
+                      label: 'สร้างเล่มใหม่ใน Google Calendar',
+                      onTap: () {
+                        Navigator.pop(ctx, null);
+                        openGoogleCalendarCreateCalendarPage();
+                      },
+                    ),
+                    _CalActionRow(
+                      icon: Icons.upload_file,
+                      label: 'นำเข้าไฟล์ .ics ไปยัง Google Calendar',
+                      onTap: () {
+                        Navigator.pop(ctx, null);
+                        openGoogleCalendarImportPage();
+                      },
+                    ),
                   ],
                 ),
               ),
-              SimpleDialogOption(
-                onPressed: () {
-                  Navigator.pop(ctx, null);
-                  openGoogleCalendarCreateCalendarPage();
-                },
-                child: const Row(
-                  children: [
-                    Icon(Icons.add, size: 18),
-                    SizedBox(width: 8),
-                    Text('สร้างเล่มใหม่ใน Google Calendar'),
-                  ],
-                ),
-              ),
-              SimpleDialogOption(
-                onPressed: () {
-                  Navigator.pop(ctx, null);
-                  openGoogleCalendarImportPage();
-                },
-                child: const Row(
-                  children: [
-                    Icon(Icons.file_upload_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('นำเข้าไฟล์ .ics ไปยัง Google Calendar'),
-                  ],
-                ),
-              ),
-            ],
+            ),
           );
         },
       );
     },
   );
 
-  // ยกเลิก timer ถ้ามี (เมื่อ dialog ปิด)
-  // (ไม่ต้อง .then กับ StatefulBuilder แล้ว)
   return result;
+}
+
+class _CalActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _CalActionRow({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.chevron_right, color: Color(0xFFFF6F00)),
+            const SizedBox(width: 6),
+            Icon(icon, size: 18, color: const Color(0xFF616161)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF424242),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 Future<String?> loadSelectedCalendarId() async {
@@ -422,14 +573,14 @@ Future<void> bulkInsertToDeviceCalendar({
       final startLocal = week1StartDate
           .add(Duration(days: (_dayIndex(day) - 1) + (7 * w)))
           .copyWith(hour: startHour, minute: 0, second: 0);
-      final endLocal = startLocal.add(Duration(minutes: _guessMinutes(timeTxt)));
+      final endLocal =
+          startLocal.add(Duration(minutes: _guessMinutes(timeTxt)));
 
       final tzStart = tz.TZDateTime.from(startLocal, tz.local);
       final tzEnd = tz.TZDateTime.from(endLocal, tz.local);
 
-      final title = note.isEmpty || note.toLowerCase() == 'rest'
-          ? 'ฝึกวิ่ง $dist'
-          : '$note • $dist';
+      final title =
+          note.isEmpty || note.toLowerCase() == 'rest' ? 'ฝึกวิ่ง $dist' : '$note • $dist';
 
       final descLines = <String>[
         'โปรแกรมวิ่ง $targetKm กม.',
@@ -473,8 +624,8 @@ Future<void> addTodaysPlanToDeviceCalendar({
   final weekIndex = (diffDays ~/ 7);
   if (weekIndex >= totalWeeks) throw 'เกินช่วงโปรแกรมแล้ว';
 
-  const names = {1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat',7:'Sun'};
-  final weekPlan = planByWeeks[weekIndex.clamp(0, planByWeeks.length-1)];
+  const names = {1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun'};
+  final weekPlan = planByWeeks[weekIndex.clamp(0, planByWeeks.length - 1)];
   final row = weekPlan.firstWhere(
     (r) => (r['day'] ?? '') == names[today.weekday],
     orElse: () => {},
@@ -520,7 +671,8 @@ Future<void> debugPrintCalendars() async {
     final list = res.data ?? <devcal.Calendar>[];
     print('---- Calendars from provider ----');
     for (final c in list) {
-      print('id=${c.id} | name=${c.name} | account=${c.accountName} | isReadOnly=${c.isReadOnly}');
+      print(
+          'id=${c.id} | name=${c.name} | account=${c.accountName} | isReadOnly=${c.isReadOnly}');
     }
   } catch (e) {
     print('debugPrintCalendars error: $e');
