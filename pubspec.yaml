@@ -16,7 +16,6 @@ dependencies:
   firebase_core: ^4.1.1
   firebase_auth: ^6.1.0
   cloud_firestore: ^6.0.2
-
   # Local storage
   shared_preferences: ^2.5.3
 
@@ -41,7 +40,7 @@ dependencies:
 
   # ใช้เรียก model มาใช้งาน
   tflite_flutter: ^0.11.0
-  #tflite_flutter_plus: ^0.4.0
+  flite_flutter_helper: ^0.3.4
 
   #จัดการฟอร์แมตวันที่
   intl: ^0.18.1 # หรือเวอร์ชันล่าสุด
@@ -57,3 +56,4 @@ flutter:
     - assets/models/lstm_activity_model_float32.tflite
     - assets/models/labels.txt
     - assets/models/thai_sign_model.tflite
+    - assets/models/lstm_activity_model_tf.tflite

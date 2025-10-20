@@ -48,10 +48,12 @@ dependencies {
     // ... (dependencies อื่น ๆ ของคุณ)
 
     // **เพิ่มบรรทัดนี้เพื่อรองรับ Select TF Ops**
-    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")  // ✅ add this
-    //implementation("org.tensorflow:tensorflow-lite:2.16.1")
-   // implementation("org.tensorflow:tensorflow-lite-select-tf-ops:0.0.0-nightly-SNAPSHOT")
-implementation("org.tensorflow:tensorflow-lite-gpu")
+    // **Pin the core TFLite runtime to ensure version compatibility**
+    // This is often brought in transitively but pinning it resolves conflicts.
+    implementation("org.tensorflow:tensorflow-lite:2.16.1") 
+
+    // ✅ REQUIRED: The Select TF Ops library to fix the 'FULLY_CONNECTED' version 12 error.
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")
 }
 
 

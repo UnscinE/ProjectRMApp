@@ -34,6 +34,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
   //String _time = '0.00';
 
   HarModelPredictor _predictor = HarModelPredictor();
+  
+  //Modelhandle
+  bool _isLoadingModel = false;
+  String? _modelError;
 
   final double _goalDistanceKm = 500.0;
   String? _currentProgramId;
@@ -93,7 +97,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
   @override
   void initState() {
     super.initState();
-    _predictor.loadModel();
+    _predictor.loadModel(onUpdate: _updateModelStatus);
     _loadProgramId();
   }
 
@@ -106,6 +110,13 @@ class _ScreenTwoState extends State<ScreenTwo> {
     super.dispose();
   }
 
+
+void _updateModelStatus({bool? isLoading, String? error}) {
+    setState(() {
+      if (isLoading != null) _isLoadingModel = isLoading;
+      _modelError = error;
+    });
+  }
   // --- GPS/Location Methods (for Speed Calculation) ---
   // Inside _ScreenTwoState
   // --- GPS/Location Methods (for Speed and Distance Calculation) ---
