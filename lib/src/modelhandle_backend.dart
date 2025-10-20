@@ -41,7 +41,7 @@ class HarModelPredictor {
   int get featureCount => _featureKeys.length;
 
   /// Load TFLite model
-  Future<void> loadModel({required ModelStatusCallback onUpdate}) async {
+  Future<void> loadModel() async {
     Interpreter? tempInterpreter;
     Delegate? tempDelegate;
 
