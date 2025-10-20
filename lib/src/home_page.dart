@@ -122,7 +122,7 @@ class _HomePageState extends State<HomePage> {
       _navigatingToSelect = false;
 
       final km = prefs.getInt('program_distance') ?? targetKm;
-      final w = prefs.getInt('program_duration') ?? trainingWeeks;
+      final w  = prefs.getInt('program_duration') ?? trainingWeeks;
       if (mounted) {
         setState(() {
           targetKm = km;
@@ -173,15 +173,17 @@ class _HomePageState extends State<HomePage> {
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
         onContinue: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const RunPage()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const RunPage()));
         },
         email: user?.email ?? 'Runner',
       ),
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
       const CalendarTab(),
+
       const Trainning2Tab(),
+
       AccountTab(
         email: user?.email ?? 'Runner',
         displayName: user?.displayName,
@@ -194,89 +196,41 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
-      // ทำพื้นหลังหน้า Home เป็นไล่สีเทาอ่อน (โทนเดียวกับทั้งแอป)
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFFFF6F00)),
-                  ),
-                )
-              : IndexedStack(index: _index, children: tabs),
-        ),
+      body: SafeArea(
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : IndexedStack(index: _index, children: tabs),
       ),
-
-      // แต่ง NavigationBar ให้เป็นธีมส้ม-เทา
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          height: 72,
-          backgroundColor: const Color(0xFFF7F7F7),
-          elevation: 0,
-          indicatorColor: const Color(0xFFFF6F00).withOpacity(.14),
-          labelTextStyle: MaterialStateProperty.resolveWith<TextStyle?>(
-            (states) {
-              final selected = states.contains(MaterialState.selected);
-              return TextStyle(
-                fontWeight: FontWeight.w800,
-                letterSpacing: selected ? 0.2 : 0.1,
-                color: selected
-                    ? const Color(0xFF212121)
-                    : const Color(0xFF757575),
-              );
-            },
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
           ),
-          iconTheme: MaterialStateProperty.resolveWith<IconThemeData?>(
-            (states) {
-              final selected = states.contains(MaterialState.selected);
-              return IconThemeData(
-                color: selected
-                    ? const Color(0xFFFF6F00)
-                    : const Color(0xFF9E9E9E),
-              );
-            },
+          NavigationDestination(
+            icon: Icon(Icons.card_travel_outlined),
+            selectedIcon: Icon(Icons.card_travel),
+            label: 'Plans',
           ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.card_travel_outlined),
-              selectedIcon: Icon(Icons.card_travel),
-              label: 'Plans',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              selectedIcon: Icon(Icons.calendar_month),
-              label: 'Calendar',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.run_circle_outlined),
-              selectedIcon: Icon(Icons.run_circle),
-              label: 'Training',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.account_circle_outlined),
-              selectedIcon: Icon(Icons.account_circle),
-              label: 'Account',
-            ),
-          ],
-        ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Calendar',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.run_circle_outlined),
+            selectedIcon: Icon(Icons.run_circle),
+            label: 'Training',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_circle_outlined),
+            selectedIcon: Icon(Icons.account_circle),
+            label: 'Account',
+          ),
+        ],
       ),
     );
   }

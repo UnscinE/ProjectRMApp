@@ -1,12 +1,14 @@
-// lib/src/tabs/trainning2_tab.dart
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-// ⬇️ อยู่คนละโฟลเดอร์ ต้องอ้างแบบ relative ออกไปหนึ่งชั้น
-import '../trainingtask_page.dart';
-import '../training_repo.dart';
+import 'package:location/location.dart';
+import 'package:rmapp/src/training_repo.dart';
+import 'package:rmapp/src/trainingtask_page.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import 'dart:async';
+import 'dart:math';
+import 'package:rmapp/src/trainingtask_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class Trainning2Tab extends StatefulWidget {
   const Trainning2Tab({super.key});
@@ -16,575 +18,409 @@ class Trainning2Tab extends StatefulWidget {
 }
 
 class _Trainning2TabState extends State<Trainning2Tab> {
-  String _runningTarget = '-';
-  String _timeTarget = '-';
-  String _runningType = '-';
-  String? _currentProgramId;
+  String _Runningtarget = '-'; // เปลี่ยนชื่อให้ตรงกับ Field ใน Firestore
+  String _Timetarget = '-'; // เปลี่ยนชื่อให้ตรงกับ Field ใน Firestore
+  String _Runningtype = '-'; // เปลี่ยนชื่อให้ตรงกับ Field ใน Firestore
+  String? _currentProgramId; // เก็บ Program ID ที่ใช้งานอยู่
 
   @override
   void initState() {
     super.initState();
-    _loadProgramId();
+    _loadProgramId(); // เรียกใช้ฟังก์ชันใหม่
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   Future<void> _loadProgramId() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // ต้องมีเมธอดนี้ใน training_repo.dart
-    final programIdList = await TrainingRepo.fetchCurrentProgramId(user.uid);
-    setState(() => _currentProgramId = programIdList?.first);
+    // เรียกฟังก์ชันดึง Program ID ปัจจุบัน
+    final programId = await TrainingRepo.fetchCurrentProgramId(user.uid);
+
+    setState(() {
+      _currentProgramId = programId?.first;
+    });
 
     if (_currentProgramId != null) {
-      await _loadTodayPlan();
+      print("✅ Program ID ล่าสุดที่ใช้: $_currentProgramId");
+      getTodaydata();
+    } else {
+      print("⚠️ ไม่พบ Program ID ปัจจุบันสำหรับผู้ใช้นี้");
     }
   }
 
-  Future<void> _loadTodayPlan() async {
+  // ========== ฟังก์ชันดึงข้อมูลแผนวันนี้ ==========
+  void getTodaydata() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || _currentProgramId == null) return;
+    final userId = user?.uid;
+    final programId = _currentProgramId;
 
-    // ให้ตรงกับหน้าฝึก (ScreenTwo) ที่บันทึกเอกสารเป็น dd-MM-yyyy
-    final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    if (userId == null || programId == null) {
+      // อาจแสดงข้อความว่า "ยังไม่มีโปรแกรมที่ใช้งานอยู่"
+      return;
+    }
 
+    // 1. กำหนด Document ID เป็นวันที่ในรูปแบบ YYYY-MM-DD (ใช้สำหรับ Firestore Document ID)
+    // ⚠️ แก้ไขตรงนี้: เปลี่ยนจาก 'dd-MM-yyyy' เป็น 'yyyy-MM-dd'
+    final now = DateTime.now();
+    final todayId = DateFormat('dd-MM-yyyy').format(now);
+
+    // 2. สร้าง Path ไปยังเอกสาร Training วันนี้
+    // Path: users/{userId}/Program/{programId}/Training/{todayId}
     final docRef = FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(userId)
         .collection('Program')
-        .doc(_currentProgramId!)
+        .doc(programId)
         .collection('Training')
-        .doc(todayId);
+        .doc(todayId); // ใช้ todayId ที่เป็น yyyy-MM-dd
 
     try {
-      final snap = await docRef.get();
-      if (snap.exists) {
-        final data = snap.data()!;
+      final snapshot = await docRef.get();
+
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+
+        if (!mounted) return;
         setState(() {
-          _runningTarget = (data['distance'] as String?) ?? 'N/A';
-          _timeTarget = (data['time'] as String?) ?? 'N/A';
-          _runningType = (data['type'] as String?) ?? 'Rest';
+          // ใช้ชื่อ Field ที่ถูกต้องจาก Firestore
+          _Runningtarget = data['distance'] as String? ?? 'N/A';
+          _Timetarget = data['time'] as String? ?? 'N/A';
+          _Runningtype = data['type'] as String? ?? 'Rest';
         });
       } else {
+        // กรณีไม่พบแผนของวันนี้
+        if (!mounted) return;
         setState(() {
-          _runningTarget = 'N/A';
-          _timeTarget = 'N/A';
-          _runningType = 'No Plan';
+          _Runningtarget = 'N/A';
+          _Timetarget = 'N/A';
+          _Runningtype = 'No Plan';
         });
       }
-    } catch (_) {
+    } catch (e) {
+      print("Error fetching today's training data: $e");
+      // จัดการข้อผิดพลาด
+      if (!mounted) return;
       setState(() {
-        _runningTarget = 'Error';
-        _timeTarget = 'Error';
-        _runningType = 'Error';
+        _Runningtarget = 'Error';
+        _Timetarget = 'Error';
+        _Runningtype = 'Error';
       });
     }
   }
 
-  /// สร้างสตรีมเอกสารบันทึก "วันนี้" เพื่อแสดงผลแบบ realtime
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _todayDocStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || _currentProgramId == null) return null;
-
-    final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('Program')
-        .doc(_currentProgramId!)
-        .collection('Training')
-        .doc(todayId)
-        .snapshots();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    //Temp variable
+    const String taskName = "Morning Run";
+    const String distance = "5 km";
+    const String time = "3 min";
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5)],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-            child: Column(
-              children: [
-                // ---------- ส่วนที่สโครลได้ ----------
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // หัวข้อ + วันที่
-                        Text(
-                          'แผนการฝึกวันนี้',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                            color: const Color(0xFF212121),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year + 543}',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: const Color(0xFF757575),
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // ---------- Card: Today Plan ----------
-                        _planCard(theme),
-
-                        const SizedBox(height: 16),
-
-                        // ---------- Card: วันที่/เวลา ----------
-                        _dateTimeCard(context),
-
-                        const SizedBox(height: 16),
-
-                        // ---------- Card: ผลการฝึกวันนี้ (Realtime) ----------
-                        _summaryTodayCard(theme),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ---------- ปุ่มด้านล่าง (ไม่สโครล) ----------
-                Container(
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6F00).withOpacity(.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ScreenTwo()),
-                      );
-                    },
-                    icon: const Icon(Icons.play_arrow, size: 28),
-                    label: Text(
-                      'เริ่มฝึกเลย',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------------- UI blocks ----------------
-
-  Widget _planCard(ThemeData theme) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-              color: Colors.black.withOpacity(.06),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6F00).withOpacity(.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.directions_run,
-                      color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Today Plan',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF212121),
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withOpacity(.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _runningType,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: const Color(0xFF10B981),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _statCell(
-                    theme,
-                    headline: 'ระยะทาง',
-                    value: _runningTarget,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _statCell(
-                    theme,
-                    headline: 'เวลา',
-                    value: _timeTarget,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-
-  Widget _dateTimeCard(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-              color: Colors.black.withOpacity(.05),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _InfoItem(
-              icon: Icons.calendar_today,
-              label: 'วันที่',
-              value: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-            ),
-            Container(width: 1, height: 36, color: const Color(0xFFE0E0E0)),
-            _InfoItem(
-              icon: Icons.access_time,
-              label: 'เวลา',
-              value: TimeOfDay.now().format(context),
-            ),
-          ],
-        ),
-      );
-
-  Widget _summaryTodayCard(ThemeData theme) {
-    final stream = _todayDocStream();
-    if (stream == null) {
-      return _emptyCard(theme, 'ยังไม่ได้เข้าสู่ระบบ หรือยังไม่มีโปรแกรมที่ใช้งานอยู่');
-    }
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: stream,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return _loadingCard();
-        }
-        if (!snap.hasData || !snap.data!.exists) {
-          return _emptyCard(theme, 'ยังไม่มีบันทึกการฝึกวันนี้');
-        }
-
-        final data = snap.data!.data() ?? {};
-        final progress =
-            ((data['progress_bar_percent'] ?? 0) as num).clamp(0, 100).toDouble();
-        final distanceKm = ((data['distance_km'] ?? 0) as num).toDouble();
-        final duration = (data['duration_display'] ?? '-') as String;
-        final avgSpeed = (data['average_speed_kph'] ?? '0').toString();
-        final activity = (data['activity'] ?? '-').toString();
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-                color: Colors.black.withOpacity(.06),
-              ),
-            ],
-          ),
+      appBar: AppBar(title: const Text('Training 2 Tab')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF10B981), Color(0xFF34D399)],
+            children: <Widget>[
+              // --- Card for Speed Display (from original code) ---
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    12,
+                  ), // Adjusted radius for better look
+                ),
+                elevation: 4,
+                color: Colors.white,
+                child: Padding(
+                  // Moved Padding here, outside the inner Column
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    // Removed extra Column for simplicity, keeping content in Row
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text(
+                            "Today Task",
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueAccent,
+                            ),
+                          ),
+
+                          Text(
+                            _Runningtype,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withOpacity(.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                      const Divider(height: 30, thickness: 1), // Separator line
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 150, // Fixed height for visual balance
+                              decoration: BoxDecoration(
+                                color: const Color.fromARGB(
+                                  255,
+                                  245,
+                                  245,
+                                  245,
+                                ), // Blue
+                                borderRadius: BorderRadius.circular(8.0),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    'Distance',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _Runningtarget,
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: Container(
+                              height: 150, // Fixed height for visual balance
+                              decoration: BoxDecoration(
+                                color: const Color.fromARGB(
+                                  255,
+                                  245,
+                                  245,
+                                  245,
+                                ), // Blue
+                                borderRadius: BorderRadius.circular(8.0),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    'Time',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _Timetarget,
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const Divider(height: 30, thickness: 1),
+
+                      //Date and time display
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text(
+                            "Date: ${DateTime.now().toLocal().toString().split(' ')[0]}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+
+                          Text(
+                            "Time: ${TimeOfDay.now().format(context)}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+
+                          //
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20), // Spacer between the cards
+
+              const SizedBox(height: 20), // Spacer between the cards
+              // --- Card for Today Task (Implementing your design sketch) ---
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // Consistent radius
+                ),
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. "Today Task" and "Task name"
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Today Task',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            ' "$taskName"',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const Divider(height: 20, thickness: 1), // Separator line
+                      // 2. "Distance" and "Time" labels
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text(
+                            'Distance',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                          Text(
+                            'Time',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // 3. Distance and Time values
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text(
+                            ' "$distance"',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            ' "$time"',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // 4. "Start" Button
+                      ElevatedButton(
+                        onPressed: () {
+                          // Action to perform on button press (e.g., start training)
+                          print('Start button pressed!');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          // You can customize the button style here
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ],
-                    ),
-                    child: const Icon(Icons.timeline,
-                        color: Colors.white, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'ผลการฝึกวันนี้',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF212121),
-                        letterSpacing: -0.3,
+                        child: const Text(
+                          'Start',
+                          style: TextStyle(fontSize: 20),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: (progress / 100.0).clamp(0.0, 1.0),
-                  minHeight: 10,
-                  backgroundColor: const Color(0xFFECECEC),
-                  valueColor:
-                      const AlwaysStoppedAnimation(Color(0xFF10B981)),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                '${progress.toStringAsFixed(0)}%',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF616161),
+
+              //Button Card
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // Consistent radius
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _statCell(
-                      theme,
-                      headline: 'ระยะทาง (km)',
-                      value: distanceKm.toStringAsFixed(2),
+                elevation: 4,
+
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ScreenTwo()),
+                    );
+                    print('Start button pressed!');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    // You can customize the button style here
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    backgroundColor: Colors.lightBlueAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _statCell(
-                      theme,
-                      headline: 'เวลา',
-                      value: duration,
-                    ),
+                  child: const Text(
+                    'Train',
+                    style: TextStyle(fontSize: 24, color: Colors.white),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _statCell(
-                      theme,
-                      headline: 'ความเร็วเฉลี่ย (km/h)',
-                      value: avgSpeed,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _statCell(
-                      theme,
-                      headline: 'กิจกรรม',
-                      value: activity,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  Widget _emptyCard(ThemeData theme, String text) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF616161),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _loadingCard() => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation(Color(0xFFFF6F00)),
-            ),
-          ),
-        ),
-      );
-
-  Widget _statCell(
-    ThemeData theme, {
-    required String headline,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFF6F00).withOpacity(.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFF6F00).withOpacity(.15)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            headline,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: const Color(0xFF757575),
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFF212121),
-              letterSpacing: -0.7,
-            ),
-          ),
-        ],
       ),
     );
+    throw UnimplementedError();
   }
 }
 
-class _InfoItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _InfoItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        Icon(icon, size: 24, color: const Color(0xFFFF6F00)),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: const Color(0xFF757575),
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF212121),
-            letterSpacing: -0.2,
-          ),
-        ),
-      ],
-    );
-  }
+class Vector3 {
+  final double x;
+  final double y;
+  final double z;
+  const Vector3(this.x, this.y, this.z);
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ⚠️ ต้องมี
+import 'package:firebase_auth/firebase_auth.dart'; // ⚠️ ต้องมี
 
-// Device calendar
+// อ่านปฏิทิน
 import 'package:device_calendar/device_calendar.dart' as devcal;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -27,77 +27,135 @@ class DashboardTab extends StatefulWidget {
 }
 
 class _DashboardTabState extends State<DashboardTab> {
-  // mock (แสดง KPI)
-  final double _distance = 5.0;
+  // data UI (mock data)
+  final distance = 5.0;
+  final pace = '6:11 / Km';
+  final totalTime = '30:59 นาที';
+  // final successPercent = 0.50; // ⬅️ ลบออกไป ใช้ _averageSuccessPercent แทน
 
-  // Program & progress (จริง)
+  // NEW: ตัวแปรสำหรับ Program ID
   String? _currentProgramId;
-  double _averageSuccessPercent = 0.0; // 0..1
 
-  // calendar today
-  String? _calendarTitle;                 // title เล่ม
-  List<String> _todayItems = const [];    // รายการวันนี้
+  // NEW: ค่าเปอร์เซ็นต์ความสำเร็จเฉลี่ย (0.0 ถึง 1.0)
+  double _averageSuccessPercent = 0.0;
+
+  String? _calendarTitle;
+  List<String>? _todayItems;
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    tz.initializeTimeZones();
-    _loadInitialData();
+    tz.initializeTimeZones(); // เพิ่มการกำหนด Time Zone
+    _loadInitialData(); // ฟังก์ชันรวมสำหรับโหลด Program ID และข้อมูล
   }
 
   Future<void> _loadInitialData() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    // เลือก program id แบบง่าย ๆ (คุณจะเปลี่ยนให้ดึงจริงจาก repo ก็ได้)
-    _currentProgramId ??= '3AUgieOoHsrQ8Bl8AcTl';
+    // 1. ดึง Program ID ปัจจุบัน
+    // ⚠️ NOTE: ควรใช้ FirebaseAuth.instance.currentUser.uid ในโค้ดจริง
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? 'MOCK_USER_ID';
 
+    // ⚠️ MOCK: จำลองการดึง Program ID
+    //   final programId = await TrainingRepo.fetchCurrentProgramId(userId);
+    setState(() {
+      _currentProgramId = '3AUgieOoHsrQ8Bl8AcTl'; // Hardcoded Mock ID
+    });
+
+    // 2. โหลดรายการจากปฏิทิน
     await _loadTodayFromDeviceCalendar();
-    if (userId != null && _currentProgramId != null) {
+
+    // 3. คำนวณค่าเฉลี่ยความสำเร็จ (เรียกหลังจากได้ Program ID แล้ว)
+    if (_currentProgramId != null) {
       await _calculateAverageSuccess(userId, _currentProgramId!);
     }
   }
 
   Future<void> _calculateAverageSuccess(String userId, String programId) async {
     try {
-      final col = FirebaseFirestore.instance
-          .collection('users').doc(userId)
-          .collection('Program').doc(programId)
+      // ... (1. กำหนด Reference)
+
+      final trainingCollectionRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('Program')
+          .doc(programId)
           .collection('Training');
 
-      final q = await col.get();
-      if (q.docs.isEmpty) {
-        if (mounted) setState(() => _averageSuccessPercent = 0);
+      // 2. ดึงเอกสารทั้งหมดใน Training Collection
+      final querySnapshot = await trainingCollectionRef.get();
+
+      if (querySnapshot.docs.isEmpty) {
+        setState(() {
+          _averageSuccessPercent = 0.0;
+        });
         return;
       }
 
-      double sum = 0;
-      int days = q.docs.length;
+      double totalProgress = 0;
+      int validCount = 0;
+      int totaltrainday = 0;
 
-      for (final d in q.docs) {
-        final raw = d.data()['progress_bar_percent'];
-        double v = switch (raw) {
-          int x    => x.toDouble(),
-          double x => x,
-          String s => double.tryParse(s) ?? 0.0,
-          _        => 0.0
-        };
-        sum += v; // v เป็น 0..100
+      // 3. วนลูปเพื่อรวมค่า progress_bar_percent
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+
+        // 🎯 การปรับปรุง: ถ้าไม่มีฟิลด์ (null) ให้ถือว่าเป็น 0.0 ทันที
+        // และแปลงให้อยู่ในรูป double (0-100)
+        double progressValue = 0.0;
+        final rawProgress = data['progress_bar_percent'];
+
+        if (rawProgress is int) {
+          progressValue = rawProgress.toDouble();
+        } else if (rawProgress is String) {
+          progressValue = double.tryParse(rawProgress) ?? 0.0;
+        } else if (rawProgress is double) {
+          progressValue = rawProgress;
+        } else {
+          // กรณี rawProgress เป็น null หรือชนิดข้อมูลอื่นที่ไม่คาดคิด
+          progressValue = 0.0;
+        }
+
+        // เรายังคงต้องการนับเฉพาะวันที่ทำสำเร็จ (> 0) เข้าไปในค่าเฉลี่ย
+        // ถ้าไม่มีฟิลด์ (progressValue = 0) จะไม่ถูกนับรวมใน validCount
+        if (progressValue > 0) {
+          totalProgress += progressValue; // รวมค่า (0-100)
+          validCount++;
+        }
       }
 
-      final avg100 = days == 0 ? 0.0 : sum / days;
+      totaltrainday = querySnapshot.docs.length;
+
+      // 4. คำนวณค่าเฉลี่ย (0-100) และแปลงเป็น 0.0-1.0
+      double averagePercent100 = (validCount > 0)
+          ? totalProgress / totaltrainday
+          : 0.0;
+      final double finalSuccessPercent = averagePercent100 / 100.0;
+
       if (mounted) {
-        setState(() => _averageSuccessPercent = (avg100 / 100).clamp(0, 1));
+        setState(() {
+          _averageSuccessPercent = finalSuccessPercent.clamp(0.0, 1.0);
+        });
       }
-    } catch (_) {/* ignore */}
+
+      print(
+        '✅ Average Success Percent: ${(_averageSuccessPercent * 100).toStringAsFixed(2)}%',
+      );
+    } catch (e) {
+      // ... (จัดการข้อผิดพลาด)
+    }
   }
 
   Future<void> _loadTodayFromDeviceCalendar() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     final plugin = devcal.DeviceCalendarPlugin();
 
     try {
+      // ขอสิทธิ์
       final perms = await plugin.requestPermissions();
       if (perms.data != true) {
         setState(() {
@@ -109,48 +167,82 @@ class _DashboardTabState extends State<DashboardTab> {
         return;
       }
 
+      // เล่มที่เลือกไว้ (เราเคยเซฟ key 'calendarId')
       final prefs = await SharedPreferences.getInstance();
       final selectedId = prefs.getString('calendarId');
 
-      final calsRes = await plugin.retrieveCalendars();
-      final cals = (calsRes.data ?? <devcal.Calendar>[])
+      // ดึงรายชื่อเล่มทั้งหมด (เขียนได้/อ่านได้)
+      final calsResult = await plugin.retrieveCalendars();
+      final cals = (calsResult.data ?? <devcal.Calendar>[])
           .where((c) => c.isReadOnly != true)
           .toList();
+
       if (cals.isEmpty) {
-        setState(() { _todayItems = const []; _calendarTitle = null; _loading = false; });
+        setState(() {
+          _todayItems = const [];
+          _calendarTitle = null;
+          _loading = false;
+        });
         return;
       }
 
-      final target = selectedId != null
-          ? (cals.firstWhere((c) => c.id == selectedId, orElse: () => cals.first))
+      // เลือกเล่มเป้าหมาย: ถ้ามี id ที่เลือกไว้ใช้เลย ไม่งั้นใช้ตัวแรก
+      final devcal.Calendar targetCal = selectedId != null
+          ? (cals.firstWhere(
+              (c) => c.id == selectedId,
+              orElse: () => cals.first,
+            ))
           : cals.first;
 
+      // ตั้งหัวข้อเล่มเพื่อโชว์ใต้การ์ด
       _calendarTitle = [
-        target.name ?? 'Calendar',
-        if ((target.accountName ?? '').isNotEmpty) '• ${target.accountName}',
+        (targetCal.name ?? 'Calendar'),
+        if ((targetCal.accountName ?? '').isNotEmpty)
+          '• ${targetCal.accountName}',
       ].join(' ');
 
+      // ช่วงวันนี้ (00:00 - 23:59:59)
       final now = DateTime.now();
       final dayStart = DateTime(now.year, now.month, now.day);
-      final dayEnd = dayStart.add(const Duration(days: 1)).subtract(const Duration(seconds: 1));
+      final dayEnd = dayStart
+          .add(const Duration(days: 1))
+          .subtract(const Duration(seconds: 1));
       final tzStart = tz.TZDateTime.from(dayStart, tz.local);
-      final tzEnd   = tz.TZDateTime.from(dayEnd, tz.local);
+      final tzEnd = tz.TZDateTime.from(dayEnd, tz.local);
 
-      final evRes = await plugin.retrieveEvents(
-        target.id!,
-        devcal.RetrieveEventsParams(startDate: tzStart, endDate: tzEnd),
+      final eventsRes = await plugin.retrieveEvents(
+        targetCal.id!,
+        devcal.RetrieveEventsParams(
+          startDate: tzStart,
+          endDate: tzEnd,
+          // includeOccurrences: true,  // <-- ลบออกถ้าฟ้องแดง
+        ),
       );
-      final events = evRes.data ?? <devcal.Event>[];
 
+      final events = eventsRes.data ?? <devcal.Event>[];
+
+      // map รายการสำหรับโชว์ (ใช้ title + (description ถ้ามีสั้น ๆ))
       final items = <String>[];
       for (final e in events) {
-        final t = (e.title ?? '').trim();
-        final d = (e.description ?? '').trim().replaceAll('\n', ' ');
-        if (t.isEmpty && d.isEmpty) continue;
-        items.add(t.isEmpty ? d : (d.isEmpty ? t : '$t • $d'));
+        final title = (e.title ?? '').trim();
+        final desc = (e.description ?? '').trim();
+        if (title.isEmpty && desc.isEmpty) continue;
+
+        if (desc.isEmpty) {
+          items.add(title);
+        } else if (title.isEmpty) {
+          items.add(desc);
+        } else {
+          // title • desc บรรทัดเดียวแบบสั้น
+          final shortDesc = desc.replaceAll('\n', ' ');
+          items.add('$title • $shortDesc');
+        }
       }
 
-      setState(() { _todayItems = items; _loading = false; });
+      setState(() {
+        _todayItems = items;
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
         _error = '$e';
@@ -165,185 +257,189 @@ class _DashboardTabState extends State<DashboardTab> {
     final theme = Theme.of(context);
     final today = DateTime.now();
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
-        ),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'ภาพรวมการฝึก',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800, letterSpacing: -0.8, color: const Color(0xFF212121),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // หัวเรื่อง + วันที่
+          Text(
+            'การวิ่ง',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${today.day} ${_thaiMonth(today.month)} ${today.year + 543}',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(.55),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // KPI 3 ช่อง
+          Row(
+            children: [
+              _KpiTile(
+                icon: Icons.route_outlined,
+                title: 'ระยะทาง',
+                valueTop: distance.toStringAsFixed(2),
+                valueBottom: 'กม.',
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${today.day} ${_thaiMonth(today.month)} ${today.year + 543}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: const Color(0xFF757575),
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.3,
+              const SizedBox(width: 12),
+              _KpiTile(
+                icon: Icons.timer_outlined,
+                title: 'เพซเฉลี่ย',
+                valueTop: '6:11 /',
+                valueBottom: 'Km',
               ),
-            ),
-
-            const SizedBox(height: 22),
-
-            // KPI 3 ช่อง
-            Row(
-              children: const [
-                _KpiTile(
-                  icon: Icons.route, title: 'ระยะทาง',
-                  valueTop: '5.00', valueBottom: 'กม.', color: Color(0xFFFF6F00),
-                ),
-                SizedBox(width: 12),
-                _KpiTile(
-                  icon: Icons.speed, title: 'เพซเฉลี่ย',
-                  valueTop: '6:11', valueBottom: '/Km', color: Color(0xFFF57C00),
-                ),
-                SizedBox(width: 12),
-                _KpiTile(
-                  icon: Icons.schedule, title: 'เวลารวม',
-                  valueTop: '30:59', valueBottom: 'นาที', color: Color(0xFFFF9800),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 28),
-
-            // วงแหวนเปอร์เซ็นต์ (เฉลี่ยจริง)
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white, shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 40, spreadRadius: 8),
-                    BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.12), blurRadius: 30),
-                  ],
-                ),
-                child: _RingProgress(size: 200, percent: _averageSuccessPercent, stroke: 18),
+              const SizedBox(width: 12),
+              _KpiTile(
+                icon: Icons.schedule_outlined,
+                title: 'เวลารวม',
+                valueTop: '30:59',
+                valueBottom: 'นาที',
               ),
+            ],
+          ),
+
+          const SizedBox(height: 22),
+
+          // วงแหวนเปอร์เซ็นต์
+          Center(
+            child: _RingProgress(
+              size: 220,
+              // 🎯 ใช้ค่าเฉลี่ยที่คำนวณจาก Firestore
+              percent: _averageSuccessPercent,
+              stroke: 16,
+              bgOpacity: .18,
             ),
+          ),
 
-            const SizedBox(height: 32),
+          const SizedBox(height: 16),
 
-            _WeekStrip(current: 1, total: widget.trainingWeeks),
+          // สัปดาห์
+          _WeekStrip(current: 1, total: widget.trainingWeeks),
 
-            const SizedBox(height: 28),
+          const SizedBox(height: 20),
 
-            _TodayPlanCard(
-              title: 'แผนวันนี้',
-              items: _loading
-                  ? const []
-                  : (_todayItems.isEmpty ? const ['วันนี้ไม่มีรายการในปฏิทิน'] : _todayItems.take(5).toList()),
-              calendarTitle: _calendarTitle,
-              loading: _loading,
-              error: _error,
-              onRefresh: _loadTodayFromDeviceCalendar,
+          // แผนวันนี้จาก "ปฏิทินจริง"
+          _TodayPlanCard(
+            title: 'แผนวันนี้',
+            items: _buildTodayItemsForUi(),
+            calendarTitle: _calendarTitle,
+            loading: _loading,
+            error: _error,
+            onRefresh: _loadTodayFromDeviceCalendar,
+          ),
+
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: widget.onContinue,
+              icon: const Icon(Icons.play_circle_outline),
+              label: const Text('เริ่มฝึก / บันทึกการฝึก'),
             ),
-
-            const SizedBox(height: 20),
-
-            SizedBox(
-              height: 58,
-              child: FilledButton.icon(
-                onPressed: widget.onContinue,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ).copyWith(
-                  backgroundColor: WidgetStateProperty.all(Colors.transparent),
-                ),
-                icon: const Icon(Icons.play_arrow, size: 28),
-                label: Text(
-                  'เริ่มฝึก / บันทึกการฝึก',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700, letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  String _thaiMonth(int m) => const [
-        'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
-        'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'
-      ][m - 1];
+  List<String> _buildTodayItemsForUi() {
+    if (_loading) return const [];
+    if (_todayItems == null) return const [];
+    if (_todayItems!.isEmpty) return const ['วันนี้ไม่มีรายการในปฏิทิน'];
+    // จำกัด 5 บรรทัดสวย ๆ
+    return _todayItems!.take(5).toList();
+  }
+
+  String _thaiMonth(int m) {
+    const months = [
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม',
+    ];
+    return months[m - 1];
+  }
 }
 
-// ----------------- UI widgets -----------------
+/// ---------- UI widgets (เหมือนเวอร์ชันก่อน แต่ย้ายมาใช้ร่วม) ----------
 
 class _KpiTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String valueTop;
   final String valueBottom;
-  final Color color;
 
   const _KpiTile({
     required this.icon,
     required this.title,
     required this.valueTop,
     required this.valueBottom,
-    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final border = theme.colorScheme.outlineVariant.withOpacity(.5);
+    final onSurface = theme.colorScheme.onSurface;
+
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(blurRadius: 16, offset: const Offset(0, 4), color: Colors.black.withOpacity(.06))],
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(.04),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color, color.withOpacity(.85)]),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: color.withOpacity(.25), blurRadius: 8, offset: const Offset(0, 3))],
-              ),
-              child: Icon(icon, size: 22, color: Colors.white),
-            ),
-            const SizedBox(height: 14),
+            Icon(icon, size: 22, color: theme.colorScheme.primary),
+            const SizedBox(height: 6),
             Text(
               title,
               style: theme.textTheme.labelMedium?.copyWith(
-                color: const Color(0xFF757575), fontWeight: FontWeight.w600, letterSpacing: 0.3,
+                color: onSurface.withOpacity(.6),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             RichText(
               text: TextSpan(
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900, color: const Color(0xFF212121), height: 1.1, letterSpacing: -0.7,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: onSurface,
+                  height: 1.2,
                 ),
                 children: [
                   TextSpan(text: '$valueTop\n'),
                   TextSpan(
                     text: valueBottom,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700, color: const Color(0xFF616161), letterSpacing: 0.2,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: onSurface,
                     ),
                   ),
                 ],
@@ -360,40 +456,37 @@ class _RingProgress extends StatelessWidget {
   final double size;
   final double percent; // 0..1
   final double stroke;
+  final double bgOpacity;
 
-  const _RingProgress({required this.size, required this.percent, this.stroke = 14});
+  const _RingProgress({
+    required this.size,
+    required this.percent,
+    this.stroke = 14,
+    this.bgOpacity = .2,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final fg = theme.colorScheme.tertiary;
+    final bg = theme.colorScheme.onSurface.withOpacity(bgOpacity);
+
     return SizedBox(
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _RingPainter(percent: percent.clamp(0.0, 1.0), stroke: stroke),
+        painter: _RingPainter(
+          percent: percent.clamp(0.0, 1.0),
+          stroke: stroke,
+          fg: fg,
+          bg: bg,
+        ),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                  colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
-                ).createShader(b),
-                child: Text(
-                  '${(percent * 100).round()}%',
-                  style: theme.textTheme.displayLarge?.copyWith(
-                    fontWeight: FontWeight.w900, letterSpacing: -2, height: .95, color: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'ความสำเร็จ',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF757575), fontWeight: FontWeight.w600, letterSpacing: .5,
-                ),
-              ),
-            ],
+          child: Text(
+            '${(percent * 100).toStringAsFixed(2)}',
+            style: theme.textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ),
@@ -404,36 +497,47 @@ class _RingProgress extends StatelessWidget {
 class _RingPainter extends CustomPainter {
   final double percent;
   final double stroke;
-  _RingPainter({required this.percent, required this.stroke});
+  final Color fg;
+  final Color bg;
+
+  _RingPainter({
+    required this.percent,
+    required this.stroke,
+    required this.fg,
+    required this.bg,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = (size.shortestSide - stroke) / 2;
 
-    final bg = Paint()
+    final bgPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..color = const Color(0xFFEEEEEE)
+      ..color = bg
       ..strokeCap = StrokeCap.round;
 
-    final fg = Paint()
+    final fgPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFFF6F00), Color(0xFFFF8F00), Color(0xFFFFA726)],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..color = fg
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawCircle(center, radius, bg);
+    canvas.drawCircle(center, radius, bgPaint);
 
-    final start = -90 * (3.1415926535 / 180);
+    final startAngle = -90 * (3.1415926535 / 180); // -90°
     final sweep = 2 * 3.1415926535 * percent;
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), start, sweep, false, fg);
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    canvas.drawArc(rect, startAngle, sweep, false, fgPaint);
   }
 
   @override
-  bool shouldRepaint(covariant _RingPainter old) => old.percent != percent || old.stroke != stroke;
+  bool shouldRepaint(covariant _RingPainter old) =>
+      old.percent != percent ||
+      old.fg != fg ||
+      old.bg != bg ||
+      old.stroke != stroke;
 }
 
 class _WeekStrip extends StatelessWidget {
@@ -444,53 +548,36 @@ class _WeekStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 14),
-          child: Text(
-            'สัปดาห์',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800, color: const Color(0xFF212121), letterSpacing: -0.4,
+    return Row(
+      children: List.generate(total, (i) {
+        final idx = i + 1;
+        final selected = idx == current;
+        return Expanded(
+          child: Container(
+            height: 36,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: selected
+                  ? theme.colorScheme.primary.withOpacity(.20)
+                  : theme.colorScheme.surfaceVariant.withOpacity(.6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: selected
+                    ? theme.colorScheme.primary.withOpacity(.45)
+                    : Colors.transparent,
+              ),
             ),
-          ),
-        ),
-        Row(
-          children: List.generate(total, (i) {
-            final idx = i + 1;
-            final selected = idx == current;
-            return Expanded(
-              child: Container(
-                height: 54,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  gradient: selected ? const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]) : null,
-                  color: selected ? null : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: selected ? null : Border.all(color: const Color(0xFFE0E0E0), width: 2),
-                  boxShadow: [
-                    if (selected)
-                      BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.35), blurRadius: 16, offset: const Offset(0, 6))
-                    else
-                      BoxShadow(color: Colors.black.withOpacity(.04), blurRadius: 8, offset: const Offset(0, 2)),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    '$idx',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: selected ? Colors.white : const Color(0xFF757575),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
+            child: Center(
+              child: Text(
+                '$idx',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            );
-          }),
-        ),
-      ],
+            ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -515,130 +602,77 @@ class _TodayPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final subtle = theme.colorScheme.onSurface.withOpacity(.55);
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(blurRadius: 16, offset: const Offset(0, 4), color: Colors.black.withOpacity(.06))],
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.25), blurRadius: 8, offset: const Offset(0, 3))],
-                ),
-                child: const Icon(Icons.flag, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
+              Icon(Icons.flag_outlined, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
               Text(
                 title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800, letterSpacing: -0.4, color: const Color(0xFF212121),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (calendarTitle != null)
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFE0E0E0)),
-                          ),
-                          child: Text(
-                            calendarTitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: const Color(0xFF757575), fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (onRefresh != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.25), blurRadius: 8, offset: const Offset(0, 3))],
-                        ),
-                        child: IconButton(
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'รีเฟรชจากปฏิทิน',
-                          icon: const Icon(Icons.refresh, color: Colors.white, size: 20),
-                          onPressed: onRefresh,
-                        ),
-                      ),
-                    ],
-                  ],
+              const Spacer(),
+              if (calendarTitle != null)
+                Text(
+                  calendarTitle!,
+                  style: theme.textTheme.labelMedium?.copyWith(color: subtle),
                 ),
-              ),
+              if (onRefresh != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'รีเฟรชจากปฏิทิน',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: onRefresh,
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 10),
+
           if (loading)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6F00)))),
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(child: CircularProgressIndicator()),
             )
           else if (error != null)
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(12)),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'เกิดข้อผิดพลาด: $error',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFFDC2626), fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'เกิดข้อผิดพลาด: $error',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               ),
             )
           else
-            ...items.map((t) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
-                          shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.25), blurRadius: 6, offset: const Offset(0, 2))],
-                        ),
-                        child: const Icon(Icons.check, size: 12, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          t,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w500, height: 1.5, letterSpacing: 0.2, color: const Color(0xFF424242),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
+            ...items.map(
+              (t) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(t, style: theme.textTheme.bodyMedium)),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
