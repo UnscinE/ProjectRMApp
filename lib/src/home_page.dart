@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:rmapp/src/trainingtask_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'run_page.dart';
@@ -174,7 +175,7 @@ class _HomePageState extends State<HomePage> {
         trainingWeeks: trainingWeeks,
         onContinue: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const RunPage()),
+            MaterialPageRoute(builder: (_) => const ScreenTwo()),
           );
         },
         email: user?.email ?? 'Runner',
