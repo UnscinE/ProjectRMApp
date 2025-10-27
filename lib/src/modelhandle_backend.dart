@@ -46,23 +46,17 @@ class HarModelPredictor {
     Delegate? tempDelegate;
 
     // Options that might be used by the final interpreter
-    InterpreterOptions finalOptions = InterpreterOptions();
 
     try {
-      final options = InterpreterOptions();
-
       // ✅ เพิ่ม Flex Delegate เพื่อรองรับ SELECT_TF_OPS
       //final flexDelegate = FlexDelegate();
       // options.addDelegate(flexDelegate);
 
-      final _interpreter = await Interpreter.fromAsset(
-        'assets/models/lstm_activity_model_tf.tflite',
-         options: finalOptions,
-      );
+      _interpreter = await Interpreter.fromAsset('assets/models/thai_sign_model.tflite');
 
       print("✅ Model loaded successfully with SELECT_TF_OPS.");
     } catch (e) {
-      print("❌ Failed to load model: $e");
+      print("❌ Failed to ssload model: $e");
     }
   }
 
