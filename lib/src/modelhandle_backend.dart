@@ -1,5 +1,5 @@
 import 'package:tflite_flutter/tflite_flutter.dart';
-
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import 'dart:typed_data';
 
 // Define a type for the update callback for clarity
@@ -42,22 +42,38 @@ class HarModelPredictor {
 
   /// Load TFLite model
   Future<void> loadModel() async {
-    Interpreter? tempInterpreter;
-    Delegate? tempDelegate;
 
-    // Options that might be used by the final interpreter
+
+
+      try {
+    // ✅ สร้าง InterpreterOptions เพื่อเปิด Flex Delegate
+    final options = InterpreterOptions()..useNnApiForAndroid = false;
+
+    // ✅ เพิ่ม Select TF Ops delegate (Flex Delegate)
+    try {
+      options.addDelegate(XNNPackDelegate()); // optional, optimize performance
+      options.addDelegate(GpuDelegateV2());   // optional, GPU support
+    } catch (e) {
+      print("⚠️ Optional delegates not available: $e");
+    }
 
     try {
-      // ✅ เพิ่ม Flex Delegate เพื่อรองรับ SELECT_TF_OPS
-      //final flexDelegate = FlexDelegate();
-      // options.addDelegate(flexDelegate);
-
-      _interpreter = await Interpreter.fromAsset('assets/models/thai_sign_model.tflite');
-
-      print("✅ Model loaded successfully with SELECT_TF_OPS.");
+      options.addDelegate(tfl.GpuDelegate()); // ✅ ตัวนี้สำคัญสุด
+      print("✅ FlexDelegate loaded successfully");
     } catch (e) {
-      print("❌ Failed to ssload model: $e");
+      print("⚠️ FlexDelegate not available: $e");
     }
+
+    // ✅ โหลดโมเดลโดยใส่ options
+    _interpreter = await Interpreter.fromAsset(
+      'assets/thai_sign_model.tflite',
+      options: options,
+    );
+
+    print("✅ Model loaded successfully with SELECT_TF_OPS.");
+  } catch (e) {
+    print("❌ Failed to load model: $e");
+  }
   }
 
   /// Close interpreter when not needed

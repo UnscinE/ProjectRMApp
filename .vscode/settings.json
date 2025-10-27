@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "L:/PRojRM/apllication/ProjectRMApp/linux"
+    "cmake.sourceDirectory": "L:/PRojRM/apllication/ProjectRMApp/linux",
+    "java.configuration.updateBuildConfiguration": "automatic"
 }
