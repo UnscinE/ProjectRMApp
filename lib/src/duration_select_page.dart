@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'program_repo.dart';
-import 'auth_gate.dart'; // กลับไปให้ AuthGate ตัดสินใจแล้วพาเข้า Home
+import 'auth_gate.dart';
 
 class DurationSelectPage extends StatelessWidget {
   const DurationSelectPage({super.key});
@@ -11,16 +11,39 @@ class DurationSelectPage extends StatelessWidget {
   Future<void> _chooseWeeks(BuildContext context, int weeks) async {
     final user = FirebaseAuth.instance.currentUser;
 
-    // เก็บ local
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('program_duration', weeks);
+    // modal loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
 
-    // ถ้ามี user → เขียน Firestore
-    if (user != null) {
-      await ProgramRepo.setDurationChoice(user.uid, weeks);
+    String? error;
+    try {
+      // เก็บ local
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('program_duration', weeks);
+
+      // เขียน Firestore (ถ้ามี user)
+      if (user != null) {
+        await ProgramRepo.setDurationChoice(user.uid, weeks);
+      }
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(); // ปิด loading
+      }
     }
 
-    // กลับสู่ flow ปกติแบบ "ล้างสแตก" เพื่อกันจอดำ/ค้าง
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('บันทึกค่าไม่ได้: $error')),
+      );
+      return;
+    }
+
+    // กลับสู่ flow ปกติแบบล้างสแตก
     if (context.mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AuthGate()),
@@ -29,26 +52,63 @@ class DurationSelectPage extends StatelessWidget {
     }
   }
 
+  Future<int?> _readDistance() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('program_distance'); // แสดงสรุปด้านบน
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('เลือกเวลาที่ต้องการฝึก')),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
+          constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _Item(weeks: 4,  onTap: () => _chooseWeeks(context, 4)),
-                const SizedBox(height: 10),
-                _Item(weeks: 8,  onTap: () => _chooseWeeks(context, 8)),
-                const SizedBox(height: 10),
-                _Item(weeks: 12, onTap: () => _chooseWeeks(context, 12)),
-                const SizedBox(height: 14),
-                Text('เลือก 4 / 8 / 12 สัปดาห์ เพื่อเริ่มโปรแกรม', style: theme.textTheme.bodySmall),
+                FutureBuilder<int?>(
+                  future: _readDistance(),
+                  builder: (context, snap) {
+                    final km = snap.data;
+                    return Column(
+                      children: [
+                        Text(
+                          'เลือกระยะเวลาโปรแกรม',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          km != null ? 'โปรแกรมระยะทาง: $km KM' : 'โปรแกรมระยะทาง: -',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+
+                Row(
+                  children: [
+                    Expanded(child: _WeekCard(weeks: 8,  onTap: () => _chooseWeeks(context, 8))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _WeekCard(weeks: 12, onTap: () => _chooseWeeks(context, 12))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _WeekCard(weeks: 16, onTap: () => _chooseWeeks(context, 16))),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+                Text(
+                  'เลือก 8 / 12 / 16 สัปดาห์ เพื่อเริ่มโปรแกรม',
+                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+                ),
               ],
             ),
           ),
@@ -58,10 +118,11 @@ class DurationSelectPage extends StatelessWidget {
   }
 }
 
-class _Item extends StatelessWidget {
+class _WeekCard extends StatelessWidget {
   final int weeks;
   final VoidCallback onTap;
-  const _Item({required this.weeks, required this.onTap});
+
+  const _WeekCard({required this.weeks, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -69,15 +130,25 @@ class _Item extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Ink(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          color: const Color(0xFFEDEDEF),
           borderRadius: BorderRadius.circular(14),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEDEDEF), Color(0xFFDCDCDF)],
+          ),
         ),
-        child: Center(
-          child: Text('$weeks สัปดาห์',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        child: Column(
+          children: [
+            Text(
+              '$weeks',
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            const Text('สัปดาห์', style: TextStyle(fontSize: 12)),
+          ],
         ),
       ),
     );

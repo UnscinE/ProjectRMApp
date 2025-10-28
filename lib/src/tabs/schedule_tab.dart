@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/calendar_helper.dart' as cal;
 import 'package:firebase_auth/firebase_auth.dart';
-import '../training_repo.dart'; // ใช้ ProgramRepo.createProgram(...)
+import '../training_repo.dart'; // ProgramRepo.createProgram(...)
 import 'package:intl/intl.dart';
 
 class ScheduleTab extends StatefulWidget {
@@ -112,6 +112,10 @@ class _ScheduleTabState extends State<ScheduleTab> {
   // ---------------- add whole program ----------------
   Future<void> _addWholeProgramToCalendar(BuildContext context) async {
     final now = DateTime.now();
+
+    const orange = Color(0xFFFF6F00);
+    const orange2 = Color(0xFFFF8F00);
+
     final picked = await showDatePicker(
       context: context,
       initialDate: now,
@@ -120,15 +124,64 @@ class _ScheduleTabState extends State<ScheduleTab> {
       helpText: 'เลือกวันเริ่มโปรแกรม',
       confirmText: 'เพิ่มลงปฏิทิน',
       cancelText: 'ยกเลิก',
+      builder: (ctx, child) {
+        final base = Theme.of(ctx);
+        return Theme(
+          data: base.copyWith(
+            colorScheme: base.colorScheme.copyWith(
+              primary: orange,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: const Color(0xFF212121),
+            ),
+            dialogTheme: DialogThemeData(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: orange,
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            datePickerTheme: DatePickerThemeData(
+              backgroundColor: Colors.white,
+              headerBackgroundColor: orange,
+              headerForegroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) return Colors.white;
+                return const Color(0xFF212121);
+              }),
+              dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) return orange;
+                return null;
+              }),
+              todayForegroundColor: WidgetStateProperty.all(Colors.white),
+              todayBackgroundColor: WidgetStateProperty.all(orange2),
+              dayOverlayColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.pressed)) {
+                  return orange.withOpacity(.12);
+                }
+                return null;
+              }),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (picked == null) return;
 
+    if (picked == null) return;
     final startDate = DateTime(picked.year, picked.month, picked.day, 8);
 
     final user = FirebaseAuth.instance.currentUser;
     final userId = user?.uid ?? 'anonymous';
 
-    // snapshot รายวัน ใช้เก็บลง Firestore ด้วย
+    // snapshot รายวัน (เก็บลง Firestore)
     final daily = <Map<String, dynamic>>[];
     var cur = startDate;
     for (int w = 0; w < _selectedWeeks; w++) {
@@ -158,7 +211,8 @@ class _ScheduleTabState extends State<ScheduleTab> {
         calId = selected ?? cals.first.id;
         final m = cals.where((c) => c.id == calId).toList();
         if (m.isNotEmpty) {
-          calTitle = '${m.first.name ?? 'Calendar'}${(m.first.accountName ?? '').isNotEmpty ? ' • ${m.first.accountName}' : ''}';
+          calTitle =
+              '${m.first.name ?? 'Calendar'}${(m.first.accountName ?? '').isNotEmpty ? ' • ${m.first.accountName}' : ''}';
         }
 
         await cal.bulkInsertToDeviceCalendar(
@@ -170,8 +224,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
           startHour: 8,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เพิ่มลงปฏิทินเครื่องเรียบร้อย')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เพิ่มลงปฏิทินเครื่องเรียบร้อย')),
+        );
       } else {
+        // ถ้าไม่มี provider -> สร้างไฟล์ .ics ให้ผู้ใช้ import เอง
         source = 'ics';
         await cal.exportTrainingPlanToICS(
           week1StartDate: startDate,
@@ -181,10 +238,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
           startHour: 8,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ส่งออกไฟล์ .ics เรียบร้อย')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ส่งออกไฟล์ .ics เรียบร้อย')),
+        );
       }
 
-      // สร้าง Program ใน Firestore + แนบ snapshot
       await ProgramRepo.createProgram(
         userId: userId,
         startDate: startDate,
@@ -198,7 +256,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ล้มเหลว: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ล้มเหลว: $e')),
+      );
     }
   }
 
@@ -211,7 +271,8 @@ class _ScheduleTabState extends State<ScheduleTab> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
           colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5)],
         ),
       ),
@@ -226,7 +287,13 @@ class _ScheduleTabState extends State<ScheduleTab> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(blurRadius: 16, offset: const Offset(0, 4), color: Colors.black.withOpacity(.06))],
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                      color: Colors.black.withOpacity(.06),
+                    )
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -245,24 +312,50 @@ class _ScheduleTabState extends State<ScheduleTab> {
                               onTap: () {
                                 setState(() {
                                   _selectedWeeks = w;
-                                  _weekIndex = _weekIndex.clamp(0, _selectedWeeks - 1);
+                                  _weekIndex =
+                                      _weekIndex.clamp(0, _selectedWeeks - 1);
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 decoration: BoxDecoration(
-                                  gradient: sel ? const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]) : null,
-                                  color: sel ? null : const Color(0xFFF5F5F5),
+                                  gradient: sel
+                                      ? const LinearGradient(
+                                          colors: [
+                                            Color(0xFFFF6F00),
+                                            Color(0xFFFF8F00)
+                                          ],
+                                        )
+                                      : null,
+                                  color:
+                                      sel ? null : const Color(0xFFF5F5F5),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: sel ? null : Border.all(color: const Color(0xFFE0E0E0), width: 1.5),
-                                  boxShadow: sel ? [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.25), blurRadius: 12, offset: const Offset(0, 4))] : null,
+                                  border: sel
+                                      ? null
+                                      : Border.all(
+                                          color: const Color(0xFFE0E0E0),
+                                          width: 1.5,
+                                        ),
+                                  boxShadow: sel
+                                      ? [
+                                          BoxShadow(
+                                            color: const Color(0xFFFF6F00)
+                                                .withOpacity(.25),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          )
+                                        ]
+                                      : null,
                                 ),
                                 child: Center(
                                   child: Text(
                                     '$w สัปดาห์',
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       fontWeight: FontWeight.w700,
-                                      color: sel ? Colors.white : const Color(0xFF757575),
+                                      color: sel
+                                          ? Colors.white
+                                          : const Color(0xFF757575),
                                       letterSpacing: 0.3,
                                     ),
                                   ),
@@ -283,7 +376,8 @@ class _ScheduleTabState extends State<ScheduleTab> {
                             height: 52,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFFF6F00), width: 2),
+                              border: Border.all(
+                                  color: const Color(0xFFFF6F00), width: 2),
                             ),
                             child: OutlinedButton.icon(
                               onPressed: _chooseOrCreateCalendar,
@@ -293,8 +387,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                 foregroundColor: const Color(0xFFFF6F00),
                                 backgroundColor: Colors.transparent,
                                 side: BorderSide.none,
-                                textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                textStyle: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14)),
                               ),
                             ),
                           ),
@@ -305,18 +402,30 @@ class _ScheduleTabState extends State<ScheduleTab> {
                             height: 52,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
-                              gradient: const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
-                              boxShadow: [BoxShadow(color: Color(0xFFFF6F00).withOpacity(.3), blurRadius: 16, offset: Offset(0, 6))],
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0xFFFF6F00).withOpacity(.3),
+                                  blurRadius: 16,
+                                  offset: Offset(0, 6),
+                                )
+                              ],
                             ),
                             child: FilledButton.icon(
-                              onPressed: () => _addWholeProgramToCalendar(context),
+                              onPressed: () =>
+                                  _addWholeProgramToCalendar(context),
                               icon: const Icon(Icons.add_circle_outline, size: 20),
                               label: const Text('เพิ่มโปรแกรม'),
                               style: FilledButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                textStyle: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14)),
                               ),
                             ),
                           ),
@@ -331,33 +440,49 @@ class _ScheduleTabState extends State<ScheduleTab> {
             // switch week
             if (_selectedWeeks > 1)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(blurRadius: 12, offset: const Offset(0, 2), color: Colors.black.withOpacity(.04))],
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 12,
+                        offset: const Offset(0, 2),
+                        color: Colors.black.withOpacity(.04),
+                      )
+                    ],
                   ),
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => setState(() => _weekIndex = (_weekIndex - 1).clamp(0, _selectedWeeks - 1)),
-                        icon: const Icon(Icons.chevron_left, color: Color(0xFFFF6F00)),
+                        onPressed: () => setState(() =>
+                            _weekIndex =
+                                (_weekIndex - 1).clamp(0, _selectedWeeks - 1)),
+                        icon: const Icon(Icons.chevron_left,
+                            color: Color(0xFFFF6F00)),
                       ),
                       Expanded(
                         child: Center(
                           child: Text(
                             'สัปดาห์ที่ ${_weekIndex + 1}/$_selectedWeeks',
                             style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800, color: const Color(0xFF212121), letterSpacing: -0.3,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF212121),
+                              letterSpacing: -0.3,
                             ),
                           ),
                         ),
                       ),
                       IconButton(
-                        onPressed: () => setState(() => _weekIndex = (_weekIndex + 1).clamp(0, _selectedWeeks - 1)),
-                        icon: const Icon(Icons.chevron_right, color: Color(0xFFFF6F00)),
+                        onPressed: () => setState(() =>
+                            _weekIndex =
+                                (_weekIndex + 1).clamp(0, _selectedWeeks - 1)),
+                        icon: const Icon(Icons.chevron_right,
+                            color: Color(0xFFFF6F00)),
                       ),
                     ],
                   ),
@@ -385,17 +510,37 @@ class _ScheduleTabState extends State<ScheduleTab> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: isRest ? Border.all(color: const Color(0xFFE0E0E0), width: 1.5) : null,
-                      boxShadow: isRest ? null : [BoxShadow(blurRadius: 12, offset: const Offset(0, 3), color: Colors.black.withOpacity(.05))],
+                      border: isRest
+                          ? Border.all(
+                              color: const Color(0xFFE0E0E0), width: 1.5)
+                          : null,
+                      boxShadow: isRest
+                          ? null
+                          : [
+                              BoxShadow(
+                                blurRadius: 12,
+                                offset: const Offset(0, 3),
+                                color: Colors.black.withOpacity(.05),
+                              )
+                            ],
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          width: 56, height: 56,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
-                            gradient: isRest ? null : const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
-                            color: isRest ? const Color(0xFFF5F5F5) : null,
+                            gradient: isRest
+                                ? null
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFF6F00),
+                                      Color(0xFFFF8F00)
+                                    ],
+                                  ),
+                            color:
+                                isRest ? const Color(0xFFF5F5F5) : null,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Center(
@@ -403,7 +548,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
                               day,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: isRest ? const Color(0xFF9E9E9E) : Colors.white,
+                                color: isRest
+                                    ? const Color(0xFF9E9E9E)
+                                    : Colors.white,
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -418,16 +565,30 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                 note.isEmpty ? '-' : note,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: isRest ? const Color(0xFF9E9E9E) : const Color(0xFF212121),
+                                  color: isRest
+                                      ? const Color(0xFF9E9E9E)
+                                      : const Color(0xFF212121),
                                   letterSpacing: -0.2,
                                 ),
                               ),
                               const SizedBox(height: 10),
                               Row(
                                 children: [
-                                  Expanded(child: _MiniCell(headline: 'ระยะทาง', value: dist, isRest: isRest)),
+                                  Expanded(
+                                    child: _MiniCell(
+                                      headline: 'ระยะทาง',
+                                      value: dist,
+                                      isRest: isRest,
+                                    ),
+                                  ),
                                   const SizedBox(width: 10),
-                                  Expanded(child: _MiniCell(headline: 'เวลา', value: time, isRest: isRest)),
+                                  Expanded(
+                                    child: _MiniCell(
+                                      headline: 'เวลา',
+                                      value: time,
+                                      isRest: isRest,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -472,7 +633,9 @@ class _ReadonlyPill extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF616161), fontWeight: FontWeight.w600, letterSpacing: 0.2,
+                color: const Color(0xFF616161),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -496,7 +659,9 @@ class _MiniCell extends StatelessWidget {
       decoration: BoxDecoration(
         color: isRest ? const Color(0xFFFAFAFA) : const Color(0xFFFF6F00).withOpacity(.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isRest ? const Color(0xFFEEEEEE) : const Color(0xFFFF6F00).withOpacity(.15)),
+        border: Border.all(
+          color: isRest ? const Color(0xFFEEEEEE) : const Color(0xFFFF6F00).withOpacity(.15),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,7 +670,8 @@ class _MiniCell extends StatelessWidget {
             headline,
             style: theme.textTheme.labelSmall?.copyWith(
               color: isRest ? const Color(0xFF9E9E9E) : const Color(0xFF757575),
-              fontWeight: FontWeight.w600, letterSpacing: 0.3,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
             ),
           ),
           const SizedBox(height: 4),

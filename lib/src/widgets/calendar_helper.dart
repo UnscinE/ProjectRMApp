@@ -457,7 +457,7 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                     // Action rows (เปิดแอป / สร้างเล่ม / นำเข้า .ics)
                     _CalActionRow(
                       icon: Icons.open_in_new,
-                      label: 'เปิดแอป Calendar (ช่วยกระตุ้นซิงก์)',
+                      label: 'เปิดแอป Calendar',
                       onTap: () async {
                         const url = 'https://calendar.google.com/calendar/';
                         await launchUrlString(url, mode: LaunchMode.externalApplication);
@@ -469,14 +469,6 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                       onTap: () {
                         Navigator.pop(ctx, null);
                         openGoogleCalendarCreateCalendarPage();
-                      },
-                    ),
-                    _CalActionRow(
-                      icon: Icons.upload_file,
-                      label: 'นำเข้าไฟล์ .ics ไปยัง Google Calendar',
-                      onTap: () {
-                        Navigator.pop(ctx, null);
-                        openGoogleCalendarImportPage();
                       },
                     ),
                   ],
