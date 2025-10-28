@@ -1,5 +1,4 @@
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import 'dart:typed_data';
 
 // Define a type for the update callback for clarity
@@ -7,7 +6,6 @@ typedef ModelStatusCallback = void Function({bool? isLoading, String? error});
 
 class HarModelPredictor {
   Interpreter? _interpreter;
-  Delegate? _delegate;
 
   final List<String> _labels = [
     'Interval',
@@ -42,45 +40,35 @@ class HarModelPredictor {
 
   /// Load TFLite model
   Future<void> loadModel() async {
+    final options = InterpreterOptions();
 
+    options.addDelegate(GpuDelegateV2(options: GpuDelegateOptionsV2()));
+    
+    // If you were previously using GpuDelegate(), you can add it back,
+    // but ensure you have its native dependencies too (tensorflow-lite-gpu).
+    // options.addDelegate(GpuDelegate());
 
-
-      try {
-    // ✅ สร้าง InterpreterOptions เพื่อเปิด Flex Delegate
-    final options = InterpreterOptions()..useNnApiForAndroid = false;
-
-    // ✅ เพิ่ม Select TF Ops delegate (Flex Delegate)
-    try {
-      options.addDelegate(XNNPackDelegate()); // optional, optimize performance
-      options.addDelegate(GpuDelegateV2());   // optional, GPU support
-    } catch (e) {
-      print("⚠️ Optional delegates not available: $e");
-    }
+    // NOTE: Do not add any FlexDelegate() calls here.
 
     try {
-      options.addDelegate(tfl.GpuDelegate()); // ✅ ตัวนี้สำคัญสุด
-      print("✅ FlexDelegate loaded successfully");
+      _interpreter = await Interpreter.fromAsset(
+        'assets/thai_sign_model.tflite',
+        options: options, // Pass the (optional) options
+      );
+
+      print("----------------TEstttt------------------");
+      print('✅ TFLite model loaded successfully.');
     } catch (e) {
-      print("⚠️ FlexDelegate not available: $e");
+      print("⚠️ Interpreter load failed: $e");
+      // If it still fails with FlexTensorListReserve, the native linking
+      // in android/app/build.gradle is the problem.
     }
-
-    // ✅ โหลดโมเดลโดยใส่ options
-    _interpreter = await Interpreter.fromAsset(
-      'assets/thai_sign_model.tflite',
-      options: options,
-    );
-
-    print("✅ Model loaded successfully with SELECT_TF_OPS.");
-  } catch (e) {
-    print("❌ Failed to load model: $e");
-  }
   }
 
   /// Close interpreter when not needed
   void dispose() {
     _interpreter?.close();
     _interpreter = null;
-    _delegate = null;
   }
 
   /// Run prediction
