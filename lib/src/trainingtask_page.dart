@@ -159,6 +159,27 @@ class _ScreenTwoState extends State<ScreenTwo> {
     return _IntervalRuntime(segmentMeters: segMeters, totalReps: reps);
   }
 
+  // กำหนดน้ำหนักการคิด % ตามชนิดการวิ่ง
+  List<double> _weightsForType() {
+    final t = _runningType.toLowerCase();
+
+    // Tempo = คิดแบบเดียวกับ Recovery/Long/Easy → “ระยะทางล้วน”
+    if (t.contains('recovery') ||
+        t.contains('easy') ||
+        t.contains('long') ||
+        t.contains('tempo')) {
+      return [0.0, 1.0]; // [น้ำหนักเวลา, น้ำหนักระยะ]
+    }
+
+    // ดีฟอลต์: มีทั้งเวลาและระยะ → 50/50, มีอย่างเดียวก็อิงอย่างเดียว
+    final hasTime = _timeTargetMin > 0;
+    final hasDist = _targetDistanceKm > 0;
+    if (hasTime && hasDist) return [0.5, 0.5];
+    if (hasTime) return [1.0, 0.0];
+    if (hasDist) return [0.0, 1.0];
+    return [0.0, 0.0];
+  }
+
   /// ดึง "เวลาพัก" (วินาที) จากสตริงเวลา เช่น "1:30 / 3:50" → 90
   int _parseRestSec(String timeText) {
     // หา mm:ss ตัวแรกในสตริง
@@ -528,15 +549,21 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   double _calculateOverallProgress({
-    double weightTime = 0.5,
-    double weightDistance = 0.5,
+    double? weightTime,
+    double? weightDistance,
   }) {
+    // Interval: เหมือนเดิม (คิดจากจำนวน lap)
     if (_interval != null && _interval!.totalReps > 0) {
       final p =
           (_interval!.repsDone + _interval!.currentLapProgress) /
           _interval!.totalReps;
       return p.clamp(0.0, 1.0);
     }
+
+    // Non-interval: กำหนดน้ำหนักตามชนิดการวิ่ง (Tempo = ระยะล้วน)
+    final w = _weightsForType();
+    final wTime = weightTime ?? w[0];
+    final wDist = weightDistance ?? w[1];
 
     double pTime = 0.0;
     if (_timeTargetMin > 0) {
@@ -549,9 +576,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
       pDist = _distanceKm / _targetDistanceKm;
     }
 
-    final p =
-        (pTime.clamp(0.0, 1.0) * weightTime) +
-        (pDist.clamp(0.0, 1.0) * weightDistance);
+    final p = (pTime.clamp(0.0, 1.0) * wTime) + (pDist.clamp(0.0, 1.0) * wDist);
     return p.clamp(0.0, 1.0);
   }
 

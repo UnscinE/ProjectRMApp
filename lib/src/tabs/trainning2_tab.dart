@@ -724,12 +724,17 @@ class _InfoItem extends StatelessWidget {
     required this.label,
     required this.value,
   });
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
       children: [
-        const Icon(Icons.calendar_today, size: 24, color: Color(0xFFFF6F00)),
+        Icon(
+          icon,
+          size: 24,
+          color: const Color(0xFFFF6F00),
+        ), // ← ใช้ icon ที่รับมา
         const SizedBox(height: 6),
         Text(
           label,
@@ -1241,7 +1246,30 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> {
       // ถ้าเป็น interval มักเป็น "work/rest" เช่น "1:30 / 3:50" — ไม่ใช้
       return 0;
     }
+
     // ---------------------------------------------------------------
+    List<double> _weightsForTypeManual(
+      String type,
+      double targetKm,
+      int targetMin,
+    ) {
+      final t = type.toLowerCase();
+
+      // Tempo = เหมือน Recovery/Long/Easy → ระยะล้วน
+      if (t.contains('recovery') ||
+          t.contains('easy') ||
+          t.contains('long') ||
+          t.contains('tempo')) {
+        return [0.0, 1.0]; // [เวลา, ระยะ]
+      }
+
+      final hasTime = targetMin > 0;
+      final hasDist = targetKm > 0;
+      if (hasTime && hasDist) return [0.5, 0.5];
+      if (hasTime) return [1.0, 0.0];
+      if (hasDist) return [0.0, 1.0];
+      return [0.0, 0.0];
+    }
 
     final mins = int.tryParse(_durationMinCtrl.text.trim()) ?? 0;
     final secs = int.tryParse(_durationSecCtrl.text.trim()) ?? 0;
@@ -1269,26 +1297,21 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> {
       final distanceKm = double.tryParse(_distanceKmCtrl.text.trim()) ?? 0.0;
       final avg = _avgSpeedFromInputs(distanceKm, totalSecs);
 
-      // ใช้ทั้ง "ระยะ" และ "เวลา" ในการคิด progress (ถ้ามีเป้า)
       final targetKm = _parseTargetDistanceKmNonInterval(
         widget.runningTargetText,
       );
-      final targetMins = _parseTargetTimeMinNonInterval(widget.timeTargetText);
+      final targetMin = _parseTargetTimeMinNonInterval(widget.timeTargetText);
 
-      double pTime = 0.0, pDist = 0.0, progress;
-      if (targetMins > 0) pTime = totalSecs / (targetMins * 60);
+      // ใช้น้ำหนักตามชนิดการวิ่ง (Tempo/Recovery/Long/Easy = ระยะล้วน)
+      final weights = _weightsForTypeManual(widget.type, targetKm, targetMin);
+      final wTime = weights[0], wDist = weights[1];
+
+      double pTime = 0.0, pDist = 0.0;
+      if (targetMin > 0) pTime = totalSecs / (targetMin * 60);
       if (targetKm > 0) pDist = distanceKm / targetKm;
 
-      if (targetMins > 0 && targetKm > 0) {
-        progress = (pTime.clamp(0, 1) * 0.5) + (pDist.clamp(0, 1) * 0.5);
-      } else if (targetMins > 0) {
-        progress = pTime.clamp(0, 1);
-      } else if (targetKm > 0) {
-        progress = pDist.clamp(0, 1);
-      } else {
-        // ไม่มีเป้าให้เทียบ -> ไม่เดา 100%
-        progress = 0.0;
-      }
+      final progress =
+          (pTime.clamp(0, 1) * wTime) + (pDist.clamp(0, 1) * wDist);
 
       base.addAll({
         'distance_km': distanceKm,
@@ -1298,7 +1321,7 @@ class _ManualEntrySheetState extends State<_ManualEntrySheet> {
       return base;
     }
 
-    // ---------- INTERVAL ----------
+    /// ---------- INTERVAL ----------
     final segM = widget.intervalSpec?.segmentMeters ?? 0.0;
     final reps = widget.intervalSpec?.reps ?? 0;
 
