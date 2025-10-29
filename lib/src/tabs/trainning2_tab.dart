@@ -91,6 +91,61 @@ class _Trainning2TabState extends State<Trainning2Tab> {
         .snapshots();
   }
 
+  /// ====== เพิ่ม: เปิดฟอร์มเพิ่มข้อมูลเอง ======
+  Future<void> _openManualEntrySheet() async {
+    if (_currentProgramId == null) return;
+    final spec = _parseIntervalSpec(
+      _runningTarget,
+      _timeTarget,
+    ); // ถ้าวันนี้เป็น interval จะได้ reps/segment ไว้ใช้สร้างช่อง Lap
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _ManualEntrySheet(
+        type: _runningType,
+        runningTargetText: _runningTarget,
+        timeTargetText: _timeTarget,
+        intervalSpec: spec,
+      ),
+    );
+
+    if (result == null) return;
+
+    // เขียนลง Firestore ให้รูปแบบตรงกับของระบบอัตโนมัติ
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('Program')
+        .doc(_currentProgramId!)
+        .collection('Training')
+        .doc(todayId);
+
+    try {
+      await ref.set(result, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('บันทึกข้อมูลแบบกรอกเองเรียบร้อย')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -146,6 +201,8 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                     ),
                   ),
                 ),
+
+                /// ปุ่มหลัก “เริ่มฝึกเลย”
                 Container(
                   height: 60,
                   decoration: BoxDecoration(
@@ -197,6 +254,34 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18),
                       ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                /// ====== ปุ่มใหม่: เพิ่มข้อมูลเอง ======
+                SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: _openManualEntrySheet,
+                    icon: const Icon(Icons.edit_note, color: Color(0xFFFF6F00)),
+                    label: Text(
+                      'เพิ่มข้อมูลเอง',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFFFF6F00),
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                        color: Color(0xFFFF6F00),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      backgroundColor: Colors.white,
                     ),
                   ),
                 ),
@@ -382,10 +467,8 @@ class _Trainning2TabState extends State<Trainning2Tab> {
         // Interval section: ดึง laps + segment_m
         Widget? intervalSection;
         if (typeLower == 'interval' && (data['interval'] is Map)) {
-          // ✅ แปลง map ให้เป็น <String, dynamic> เสมอ
           final interval = Map<String, dynamic>.from(data['interval'] as Map);
 
-          // ✅ อ่านค่าแบบปลอดภัย
           final repsDone = (interval['reps_done'] as num?)?.toInt() ?? 0;
           final lapProg = (interval['lap_progress'] as num?)?.toDouble() ?? 0.0;
           final reps = (interval['total_reps'] as num?)?.toInt() ?? 0;
@@ -623,6 +706,9 @@ class _Trainning2TabState extends State<Trainning2Tab> {
       reps: reps,
       segmentLabel: '$seg ${unit.toUpperCase()}',
       workRestLabel: workRest,
+      segmentMeters: unit == 'km'
+          ? (double.parse(seg) * 1000.0)
+          : double.parse(seg),
     );
   }
 }
@@ -671,10 +757,12 @@ class _IntervalSpec {
   final int reps;
   final String segmentLabel;
   final String workRestLabel;
+  final double segmentMeters;
   _IntervalSpec({
     required this.reps,
     required this.segmentLabel,
     required this.workRestLabel,
+    required this.segmentMeters,
   });
 }
 
@@ -794,6 +882,606 @@ class _LapBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// ======== Bottom Sheet: แบบฟอร์มเพิ่มข้อมูลเอง (Styled) =========
+class _ManualEntrySheet extends StatefulWidget {
+  final String type; // Rest | Interval | Long run | Recovery | Tempo ...
+  final String runningTargetText; // เช่น "400 m × 4" หรือ "3 KM"
+  final String timeTargetText; // เช่น "1:30 / 3:50" หรือ "30 Min"
+  final _IntervalSpec? intervalSpec;
+
+  const _ManualEntrySheet({
+    required this.type,
+    required this.runningTargetText,
+    required this.timeTargetText,
+    required this.intervalSpec,
+  });
+
+  @override
+  State<_ManualEntrySheet> createState() => _ManualEntrySheetState();
+}
+
+class _ManualEntrySheetState extends State<_ManualEntrySheet> {
+  final _formKey = GlobalKey<FormState>();
+
+  // ช่องที่ใช้ร่วมกัน
+  final _distanceKmCtrl = TextEditingController(); // ใช้กับ non-interval
+  final _durationMinCtrl = TextEditingController(); // นาที
+  final _durationSecCtrl = TextEditingController(); // วินาที
+  final _avgSpeedCtrl = TextEditingController(); // ไม่บังคับ ให้ระบบคำนวณได้
+
+  // สำหรับ Interval: ช่อง Lap ตามแผน
+  late final List<TextEditingController> _lapCtrls;
+
+  @override
+  void initState() {
+    super.initState();
+    final reps = widget.intervalSpec?.reps ?? 0;
+    _lapCtrls = List.generate(reps, (_) => TextEditingController());
+  }
+
+  @override
+  void dispose() {
+    _distanceKmCtrl.dispose();
+    _durationMinCtrl.dispose();
+    _durationSecCtrl.dispose();
+    _avgSpeedCtrl.dispose();
+    for (final c in _lapCtrls) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isInterval = widget.type.toLowerCase() == 'interval';
+    final reps = widget.intervalSpec?.reps ?? 0;
+    final segLabel = widget.intervalSpec?.segmentLabel ?? '';
+
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 220),
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 30,
+              color: Color(0x33000000),
+              offset: Offset(0, -6),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // grabber
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE7EAF0),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x33FF6F00),
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.edit_note,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'เพิ่มข้อมูลการฝึกเอง',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                _ChipTag(
+                                  icon: Icons.category,
+                                  label: widget.type,
+                                ),
+                                if (widget.runningTargetText.isNotEmpty)
+                                  _ChipTag(
+                                    icon: Icons.flag,
+                                    label: widget.runningTargetText,
+                                  ),
+                                if (widget.timeTargetText.isNotEmpty)
+                                  _ChipTag(
+                                    icon: Icons.timer,
+                                    label: widget.timeTargetText,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const _Gap(16),
+                  const Divider(height: 1, color: Color(0xFFEFEFEF)),
+                  const _Gap(10),
+
+                  // Section: สรุปทั่วไป
+                  const _SectionTitle(
+                    icon: Icons.info_outline,
+                    title: 'สรุปทั่วไป',
+                  ),
+                  const _Gap(
+                    10,
+                  ), // ← เพิ่มบรรทัดนี้เพื่อให้ระยะเท่าหัวข้อ "บันทึก Lap"
+
+                  if (!isInterval) ...[
+                    _NumField(
+                      controller: _distanceKmCtrl,
+                      label: 'ระยะทางรวม (กม.)',
+                      hint: 'เช่น 3.20',
+                      prefix: const Text(
+                        'km',
+                        style: TextStyle(color: Color(0xFF9AA3AF)),
+                      ),
+                      suffixGap: 10,
+                    ),
+                    const _Gap(12), // เดิม 10 (ขยับให้โปร่งขึ้นนิด)
+                  ],
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _NumField(
+                          controller: _durationMinCtrl,
+                          label: 'เวลา (นาที)',
+                          hint: 'เช่น 25',
+                          prefixIcon: Icons.schedule,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _NumField(
+                          controller: _durationSecCtrl,
+                          label: 'เวลา (วินาที)',
+                          hint: 'เช่น 30',
+                          prefixIcon: Icons.timelapse,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const _Gap(12), // เดิม 10
+
+                  _NumField(
+                    controller: _avgSpeedCtrl,
+                    label: 'ความเร็วเฉลี่ย (กม./ชม.) (ไม่บังคับ)',
+                    hint: 'ปล่อยว่างให้ระบบคำนวณได้',
+                    prefixIcon: Icons.speed,
+                  ),
+
+                  if (isInterval) ...[
+                    const _Gap(18),
+                    const _SectionTitle(
+                      icon: Icons.directions_run,
+                      title: 'บันทึก Lap',
+                    ),
+                    Text(
+                      'ตามแผน: $segLabel × $reps',
+                      style: const TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const _Gap(10),
+
+                    // Laps: จัด layout ให้สวยและอ่านง่าย (2 คอลัมน์ถ้าพื้นที่พอ)
+                    LayoutBuilder(
+                      builder: (context, c) {
+                        final isWide = c.maxWidth >= 380;
+                        final itemW = isWide
+                            ? (c.maxWidth - 10) / 2
+                            : c.maxWidth;
+                        return Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: List.generate(reps, (i) {
+                            return SizedBox(
+                              width: itemW,
+                              child: _NumField(
+                                controller: _lapCtrls[i],
+                                label: 'Lap ${i + 1} (เมตร)',
+                                hint:
+                                    (widget.intervalSpec?.segmentMeters
+                                        .toStringAsFixed(0) ??
+                                    '400'),
+                                prefixIcon: Icons.flag_circle_outlined,
+                                // suffix: const Text(
+                                //   'm',
+                                //   style: TextStyle(color: Color(0xFF9AA3AF)),
+                                // ),
+                              ),
+                            );
+                          }),
+                        );
+                      },
+                    ),
+                  ],
+
+                  const _Gap(20),
+                  // Save button (sticky look & feel)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF10B981), Color(0xFF34D399)],
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x3310B981),
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if ((_durationMinCtrl.text.trim().isEmpty) &&
+                            (_durationSecCtrl.text.trim().isEmpty)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('กรอกเวลาอย่างน้อย 1 ช่อง'),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.of(context).pop(_buildFirestoreBody());
+                      },
+                      icon: const Icon(Icons.save, color: Colors.white),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 3.0),
+                        child: Text(
+                          'บันทึก',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic> _buildFirestoreBody() {
+    // ----- helpers (ประกาศไว้บนสุดของเมธอด เพื่อใช้ได้ทันที) -----
+    double _parseTargetDistanceKmNonInterval(String text) {
+      final re = RegExp(r'(\d+(?:\.\d+)?)\s*(km|กม)\b', caseSensitive: false);
+      final m = re.firstMatch(text.trim());
+      if (m == null) return 0.0;
+      return double.tryParse(m.group(1)!) ?? 0.0;
+    }
+
+    int _parseTargetTimeMinNonInterval(String text) {
+      final t = text.trim();
+
+      // รูปแบบ mm:ss หรือ hh:mm:ss
+      final colon = RegExp(r'^(\d{1,2})(?::(\d{2}))(?::(\d{2}))?$');
+      final mc = colon.firstMatch(t);
+      if (mc != null) {
+        final h = int.tryParse(mc.group(1)!) ?? 0;
+        final m = int.tryParse(mc.group(2)!) ?? 0;
+        final s = int.tryParse(mc.group(3) ?? '0') ?? 0;
+        return (h * 60) + m + (s >= 30 ? 1 : 0); // ปัดนาทีอย่างง่าย
+      }
+
+      // "30 นาที" / "30 min" / "30 mins"
+      final word = RegExp(
+        r'(\d+)\s*(นาที|minute|min|mins)',
+        caseSensitive: false,
+      );
+      final mw = word.firstMatch(t);
+      if (mw != null) return int.tryParse(mw.group(1)!) ?? 0;
+
+      // ถ้าเป็น interval มักเป็น "work/rest" เช่น "1:30 / 3:50" — ไม่ใช้
+      return 0;
+    }
+    // ---------------------------------------------------------------
+
+    final mins = int.tryParse(_durationMinCtrl.text.trim()) ?? 0;
+    final secs = int.tryParse(_durationSecCtrl.text.trim()) ?? 0;
+    final totalSecs = (mins * 60) + secs;
+
+    String two(int n) => n.toString().padLeft(2, '0');
+    final durationStr = '00:${two(mins)}:${two(secs)}';
+
+    final now = Timestamp.now();
+    final base = <String, dynamic>{
+      'date': now,
+      'type': widget.type,
+      'distance': widget.runningTargetText,
+      'time': widget.timeTargetText,
+      'activity': 'manual',
+      'duration_s': totalSecs,
+      'duration_display': durationStr,
+      'updatedAt': now,
+      'source': 'manual',
+    };
+
+    // ---------- NON-INTERVAL ----------
+    final isInterval = widget.type.toLowerCase() == 'interval';
+    if (!isInterval) {
+      final distanceKm = double.tryParse(_distanceKmCtrl.text.trim()) ?? 0.0;
+      final avg = _avgSpeedFromInputs(distanceKm, totalSecs);
+
+      // ใช้ทั้ง "ระยะ" และ "เวลา" ในการคิด progress (ถ้ามีเป้า)
+      final targetKm = _parseTargetDistanceKmNonInterval(
+        widget.runningTargetText,
+      );
+      final targetMins = _parseTargetTimeMinNonInterval(widget.timeTargetText);
+
+      double pTime = 0.0, pDist = 0.0, progress;
+      if (targetMins > 0) pTime = totalSecs / (targetMins * 60);
+      if (targetKm > 0) pDist = distanceKm / targetKm;
+
+      if (targetMins > 0 && targetKm > 0) {
+        progress = (pTime.clamp(0, 1) * 0.5) + (pDist.clamp(0, 1) * 0.5);
+      } else if (targetMins > 0) {
+        progress = pTime.clamp(0, 1);
+      } else if (targetKm > 0) {
+        progress = pDist.clamp(0, 1);
+      } else {
+        // ไม่มีเป้าให้เทียบ -> ไม่เดา 100%
+        progress = 0.0;
+      }
+
+      base.addAll({
+        'distance_km': distanceKm,
+        'average_speed_kph': avg.toStringAsFixed(2),
+        'progress_bar_percent': (progress * 100).round().clamp(0, 100),
+      });
+      return base;
+    }
+
+    // ---------- INTERVAL ----------
+    final segM = widget.intervalSpec?.segmentMeters ?? 0.0;
+    final reps = widget.intervalSpec?.reps ?? 0;
+
+    final lapsMeters = List<double>.generate(reps, (i) {
+      final v = double.tryParse(_lapCtrls[i].text.trim()) ?? 0.0;
+      return segM > 0 ? v.clamp(0.0, segM) : v;
+    });
+
+    final repsDone = segM > 0
+        ? lapsMeters.where((m) => m >= segM).length
+        : lapsMeters.length;
+
+    final currentLapIndex = segM > 0 ? repsDone : 0;
+    final lapProgress = (segM > 0 && currentLapIndex < reps)
+        ? (lapsMeters[currentLapIndex] / segM).clamp(0.0, 1.0)
+        : 0.0;
+
+    final sumMeters = lapsMeters.fold<double>(0.0, (a, b) => a + b);
+    final totalKm = sumMeters / 1000.0;
+    final avg = _avgSpeedFromInputs(totalKm, totalSecs);
+
+    // สูตรเดียวกับ runtime: (จำนวน lap ที่จบ + ความคืบหน้า lap ปัจจุบัน) / จำนวน lap ทั้งหมด
+    double progress = 0.0;
+    if (reps > 0) {
+      progress = ((repsDone + lapProgress) / reps).clamp(0.0, 1.0);
+    }
+
+    base.addAll({
+      'distance_km': totalKm,
+      'average_speed_kph': avg.toStringAsFixed(2),
+      'progress_bar_percent': (progress * 100).round().clamp(0, 100),
+      'interval': {
+        'segment_m': segM,
+        'total_reps': reps,
+        'laps': lapsMeters,
+        'reps_done': repsDone,
+        'lap_progress': lapProgress,
+        'mode': 'run',
+        'rest_left_s': 0,
+        'finished': repsDone >= reps,
+        'updatedAt': now,
+      },
+    });
+
+    return base;
+  }
+
+  double _avgSpeedFromInputs(double distanceKm, int totalSecs) {
+    final manualAvg = double.tryParse(_avgSpeedCtrl.text.trim());
+    if (manualAvg != null && manualAvg > 0) return manualAvg;
+    if (distanceKm > 0 && totalSecs > 0) {
+      return distanceKm / (totalSecs / 3600.0);
+    }
+    return 0.0;
+  }
+}
+
+/// ------------ Reusable UI helpers ------------
+class _SectionTitle extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  const _SectionTitle({required this.icon, required this.title});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3E0),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: const Color(0xFFFF6F00), size: 18),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChipTag extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _ChipTag({required this.icon, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F7FB),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE7EAF0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Gap extends StatelessWidget {
+  final double h;
+  const _Gap(this.h);
+  @override
+  Widget build(BuildContext context) => SizedBox(height: h);
+}
+
+class _NumField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String? hint;
+  final IconData? prefixIcon;
+  final Widget? prefix;
+  final Widget? suffix;
+  final double suffixGap;
+
+  const _NumField({
+    required this.controller,
+    required this.label,
+    this.hint,
+    this.prefixIcon,
+    this.prefix,
+    this.suffix,
+    this.suffixGap = 4,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    );
+    final focused = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFFFF6F00), width: 1.6),
+    );
+
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        filled: true,
+        fillColor: const Color(0xFFF9FAFB),
+        prefixIcon: prefixIcon != null
+            ? Icon(prefixIcon, color: const Color(0xFF9AA3AF))
+            : null,
+        prefix: prefix != null
+            ? Padding(
+                padding: const EdgeInsets.only(left: 8, right: 6),
+                child: prefix,
+              )
+            : null,
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        suffixIcon: suffix != null
+            ? Padding(
+                padding: EdgeInsets.only(right: suffixGap),
+                child: suffix,
+              )
+            : null,
+        border: border,
+        enabledBorder: border,
+        focusedBorder: focused,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
       ),
     );
   }
