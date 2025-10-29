@@ -19,7 +19,9 @@ class ScreenTwo extends StatefulWidget {
 }
 
 class Vector3 {
-  final double x; final double y; final double z;
+  final double x;
+  final double y;
+  final double z;
   const Vector3(this.x, this.y, this.z);
 }
 
@@ -27,12 +29,12 @@ class Vector3 {
 class _IntervalRuntime {
   final double segmentMeters;
   final int totalReps;
-  int currentLap = 0;                     // index 0..totalReps-1
-  final List<double> lapMeters;           // ระยะสะสมของแต่ละ Lap (เมตร)
+  int currentLap = 0; // index 0..totalReps-1
+  final List<double> lapMeters; // ระยะสะสมของแต่ละ Lap (เมตร)
   int lastWriteMs = 0;
 
   _IntervalRuntime({required this.segmentMeters, required this.totalReps})
-      : lapMeters = List<double>.filled(max(totalReps, 0), 0.0);
+    : lapMeters = List<double>.filled(max(totalReps, 0), 0.0);
 
   int get repsDone => lapMeters.where((m) => m >= segmentMeters).length;
 
@@ -70,11 +72,17 @@ class _ScreenTwoState extends State<ScreenTwo> {
   // แผนของวันนี้
   String _runningType = 'Long Run';
   String _runningTargetText = ''; // เช่น "3 KM" หรือ "400 m × 4"
+  String _timeTargetText = ''; // เช่น "1:30 / 3:50"
   int _timeTargetMin = 0;
   double _targetDistanceKm = 0.0;
 
   // Interval runtime (ถ้าวันนี้เป็น Interval)
   _IntervalRuntime? _interval;
+  // โหมดวิ่ง/พัก
+  String _intervalMode = 'run'; // "run" | "rest"
+  int _intervalRestSec = 90; // เวลาพักต่อรอบ (วินาที)
+  int _restLeft = 0; // เวลาพักคงเหลือ
+  Timer? _restTimer; // ไทเมอร์นับเวลาพัก
 
   // ค่าขณะฝึก
   bool _isTraining = false;
@@ -121,6 +129,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _accelSub?.cancel();
     _gyroSub?.cancel();
     _timer?.cancel();
+    _restTimer?.cancel();
     super.dispose();
   }
 
@@ -137,7 +146,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
   /// parse ระยะ/เวลา เพื่อเตรียม interval runtime ถ้าจำเป็น
   _IntervalRuntime? _buildIntervalFromStrings(String distanceText) {
-    final re = RegExp(r'(\d+(?:\.\d+)?)\s*(km|m)\s*[x×]\s*(\d+)', caseSensitive: false);
+    final re = RegExp(
+      r'(\d+(?:\.\d+)?)\s*(km|m)\s*[x×]\s*(\d+)',
+      caseSensitive: false,
+    );
     final m = re.firstMatch(distanceText.trim());
     if (m == null) return null;
     final seg = double.parse(m.group(1)!);
@@ -147,15 +159,36 @@ class _ScreenTwoState extends State<ScreenTwo> {
     return _IntervalRuntime(segmentMeters: segMeters, totalReps: reps);
   }
 
+  /// ดึง "เวลาพัก" (วินาที) จากสตริงเวลา เช่น "1:30 / 3:50" → 90
+  int _parseRestSec(String timeText) {
+    // หา mm:ss ตัวแรกในสตริง
+    final mmss = RegExp(r'(\d{1,2}):(\d{2})');
+    final m = mmss.firstMatch(timeText);
+    if (m != null) {
+      final mm = int.tryParse(m.group(1)!) ?? 0;
+      final ss = int.tryParse(m.group(2)!) ?? 0;
+      return (mm * 60) + ss;
+    }
+    // ถ้าไม่เจอ ลองเขียนเป็นนาทีล้วน ๆ เช่น "90"
+    final onlyNum =
+        int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    if (onlyNum >= 30 && onlyNum <= 600) return onlyNum; // เดาว่าเป็นวินาที
+    // fallback
+    return 90;
+  }
+
   Future<void> _loadTodayPlan() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _currentProgramId == null) return;
 
     final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
     final docRef = FirebaseFirestore.instance
-        .collection('users').doc(user.uid)
-        .collection('Program').doc(_currentProgramId!)
-        .collection('Training').doc(todayId);
+        .collection('users')
+        .doc(user.uid)
+        .collection('Program')
+        .doc(_currentProgramId!)
+        .collection('Training')
+        .doc(todayId);
 
     try {
       final snap = await docRef.get();
@@ -163,6 +196,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
         setState(() {
           _runningType = 'No Plan';
           _runningTargetText = 'N/A';
+          _timeTargetText = 'N/A';
           _timeTargetMin = 0;
           _targetDistanceKm = 0.0;
           _interval = null;
@@ -172,11 +206,15 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
       final data = snap.data()!;
       final distanceText = (data['distance']?.toString() ?? '').trim();
-      final timeText     = (data['time']?.toString() ?? '').trim();
-      final typeText     = (data['type']?.toString() ?? 'Rest').trim();
+      final timeText = (data['time']?.toString() ?? '').trim();
+      final typeText = (data['type']?.toString() ?? 'Rest').trim();
 
-      final minutesNum = int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-      final distanceNum = double.tryParse(distanceText.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+      // minutes (เฉพาะใช้โชว์)
+      final minutesNum =
+          int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final distanceNum =
+          double.tryParse(distanceText.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+          0.0;
 
       _IntervalRuntime? interval;
       if (typeText.toLowerCase() == 'interval') {
@@ -186,11 +224,16 @@ class _ScreenTwoState extends State<ScreenTwo> {
       setState(() {
         _runningType = typeText;
         _runningTargetText = distanceText;
+        _timeTargetText = timeText;
         _timeTargetMin = minutesNum;
         _interval = interval;
-        // เป้าโดยรวม: ถ้าเป็น interval ใช้ seg*reps, ถ้าไม่ใช่ ใช้ตัวเลขใน text (KM)
+        _intervalMode = 'run';
+        _intervalRestSec = _parseRestSec(timeText); // ดึงเวลาพักจากสตริง
+        _restLeft = 0;
+
         if (interval != null) {
-          _targetDistanceKm = (interval.segmentMeters * interval.totalReps) / 1000.0;
+          _targetDistanceKm =
+              (interval.segmentMeters * interval.totalReps) / 1000.0;
         } else {
           _targetDistanceKm = distanceNum;
         }
@@ -199,6 +242,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
       setState(() {
         _runningType = 'Error';
         _runningTargetText = 'Error';
+        _timeTargetText = 'Error';
         _timeTargetMin = 0;
         _targetDistanceKm = 0.0;
         _interval = null;
@@ -218,9 +262,12 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
     final dateKey = DateFormat('dd-MM-yyyy').format(DateTime.now());
     final ref = FirebaseFirestore.instance
-        .collection('users').doc(user.uid)
-        .collection('Program').doc(_currentProgramId!)
-        .collection('Training').doc(dateKey);
+        .collection('users')
+        .doc(user.uid)
+        .collection('Program')
+        .doc(_currentProgramId!)
+        .collection('Training')
+        .doc(dateKey);
 
     try {
       await ref.set({
@@ -229,18 +276,24 @@ class _ScreenTwoState extends State<ScreenTwo> {
         // summary
         'distance_km': _totalDistanceMeters / 1000.0,
         'duration_s': _secs,
-        'average_speed_kph': _secs == 0 ? 0.0 : (_totalDistanceMeters / 1000.0) / (_secs / 3600.0),
+        'average_speed_kph': _secs == 0
+            ? 0.0
+            : (_totalDistanceMeters / 1000.0) / (_secs / 3600.0),
         // interval detail
         'interval': {
           'segment_m': _interval!.segmentMeters,
           'total_reps': _interval!.totalReps,
           'reps_done': _interval!.repsDone,
           'lap_progress': _interval!.currentLapProgress, // 0..1 for current lap
-          'laps': _interval!.lapMeters,                  // array ของระยะจริง (เมตร)
+          'laps': _interval!.lapMeters, // array ของระยะจริง (เมตร)
+          'mode': _intervalMode, // "run" | "rest"
+          'rest_left_s': _intervalMode == 'rest' ? _restLeft : 0,
           'updatedAt': FieldValue.serverTimestamp(),
         },
         // overall progress bar
-        'progress_bar_percent': (_calculateOverallProgress() * 100).round().clamp(0, 100),
+        'progress_bar_percent': (_calculateOverallProgress() * 100)
+            .round()
+            .clamp(0, 100),
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Interval write error: $e');
@@ -261,9 +314,12 @@ class _ScreenTwoState extends State<ScreenTwo> {
         '${two(_secs % 60)}';
 
     final ref = FirebaseFirestore.instance
-        .collection('users').doc(user.uid)
-        .collection('Program').doc(_currentProgramId!)
-        .collection('Training').doc(dateKey);
+        .collection('users')
+        .doc(user.uid)
+        .collection('Program')
+        .doc(_currentProgramId!)
+        .collection('Training')
+        .doc(dateKey);
 
     final body = {
       'date': Timestamp.now(),
@@ -274,7 +330,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
       'duration_s': _secs,
       'duration_display': durationStr,
       'average_speed_kph': avgSpeedKph.toStringAsFixed(2),
-      'progress_bar_percent': (_calculateOverallProgress() * 100).round().clamp(0, 100),
+      'progress_bar_percent': (_calculateOverallProgress() * 100).round().clamp(
+        0,
+        100,
+      ),
     };
 
     if (_interval != null) {
@@ -284,6 +343,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
         'reps_done': _interval!.repsDone,
         'lap_progress': _interval!.currentLapProgress,
         'laps': _interval!.lapMeters,
+        'mode': _intervalMode,
+        'rest_left_s': _intervalMode == 'rest' ? _restLeft : 0,
         'finished': _interval!.isFinished,
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -303,43 +364,97 @@ class _ScreenTwoState extends State<ScreenTwo> {
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever)
+        return;
     }
 
-    _locationSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 1),
-    ).listen((pos) {
-      if (!mounted) return;
+    _locationSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 1,
+          ),
+        ).listen((pos) {
+          if (!mounted) return;
 
-      double inc = 0.0;
-      if (_lastPosition != null) {
-        inc = Geolocator.distanceBetween(
-          _lastPosition!.latitude, _lastPosition!.longitude,
-          pos.latitude, pos.longitude,
-        );
-        _totalDistanceMeters += inc;
-        _distanceKm = _totalDistanceMeters / 1000.0;
-
-        // ---- Interval distance split ----
-        if (_interval != null && inc > 0) {
-          final finished = _interval!.addDelta(inc);
-          // เขียน Firestore แบบ throttle ให้เห็น Lap วิ่งไปเท่าไหร่แล้ว
-          _writeIntervalUpdateThrottled();
-          // จบอัตโนมัติเมื่อครบทุก Lap
-          if (finished) {
-            _stopTraining();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('🎯 Interval completed — session ended.')),
+          double inc = 0.0;
+          if (_lastPosition != null) {
+            inc = Geolocator.distanceBetween(
+              _lastPosition!.latitude,
+              _lastPosition!.longitude,
+              pos.latitude,
+              pos.longitude,
             );
-          }
-        }
-      }
 
-      setState(() {
-        _currentSpeedMs = (pos.speed).abs();
-        _speedKmhText = (_currentSpeedMs * 3.6).toStringAsFixed(2);
-        _lastPosition = pos;
-      });
+            // ---- เงื่อนไขการนับระยะ ----
+            // นับระยะรวมกับระยะอินเทอวอลเฉพาะตอน "run"
+            if (_interval == null || _intervalMode == 'run') {
+              _totalDistanceMeters += inc;
+              _distanceKm = _totalDistanceMeters / 1000.0;
+            }
+
+            // ---- Interval distance split ----
+            if (_interval != null && _intervalMode == 'run' && inc > 0) {
+              // เก็บสถานะก่อนอัปเดต
+              final prevLapIndex =
+                  _interval!.currentLap; // 0..N-1 (Lap ที่กำลังวิ่งก่อนอัปเดต)
+
+              final finishedAll = _interval!.addDelta(inc);
+
+              // เพิ่งจบ Lap เดิมใน tick นี้ ถ้า currentLap ขยับขึ้นแสดงว่าปิด Lap ได้พอดี
+              final lapJustCompleted = _interval!.currentLap > prevLapIndex;
+
+              if (finishedAll) {
+                _writeIntervalUpdateThrottled();
+                _stopTraining();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🎯 Interval completed — session ended.'),
+                  ),
+                );
+              } else if (lapJustCompleted && _intervalMode == 'run') {
+                // เข้าพักเฉพาะเมื่อเพิ่งจบ Lap ในรอบนี้จริง ๆ
+                _startRestPhase();
+                _writeIntervalUpdateThrottled();
+              } else {
+                // ยังวิ่ง Lap เดิมอยู่
+                _writeIntervalUpdateThrottled();
+              }
+            }
+          }
+
+          setState(() {
+            _currentSpeedMs = (pos.speed).abs();
+            _speedKmhText = (_currentSpeedMs * 3.6).toStringAsFixed(2);
+            _lastPosition = pos;
+          });
+        });
+  }
+
+  // ---------------- REST phase helpers ----------------
+  void _startRestPhase() {
+    if (_interval == null) return;
+    setState(() {
+      _intervalMode = 'rest';
+      _restLeft = _intervalRestSec;
+    });
+    _restTimer?.cancel();
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!_isTraining || _intervalMode != 'rest') {
+        t.cancel();
+        return;
+      }
+      if (_restLeft > 0) {
+        setState(() => _restLeft--);
+        _writeIntervalUpdateThrottled();
+      } else {
+        t.cancel();
+        setState(() {
+          _intervalMode = 'run'; // กลับไปวิ่ง Lap ถัดไป
+        });
+        _writeIntervalUpdateThrottled();
+      }
     });
   }
 
@@ -352,11 +467,17 @@ class _ScreenTwoState extends State<ScreenTwo> {
       final mag = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
       final time = (DateTime.now().millisecondsSinceEpoch - t0) / 1000.0;
 
-      _rawAccelData.add({'Time (s)': time, 'accelerometer_x': e.x, 'accelerometer_y': e.y, 'accelerometer_z': e.z});
+      _rawAccelData.add({
+        'Time (s)': time,
+        'accelerometer_x': e.x,
+        'accelerometer_y': e.y,
+        'accelerometer_z': e.z,
+      });
       setState(() {
         _accelerometerData = Vector3(e.x, e.y, e.z);
         _accelMagnitudes.add(mag);
-        if (_accelMagnitudes.length > _maxDataPoints) _accelMagnitudes.removeAt(0);
+        if (_accelMagnitudes.length > _maxDataPoints)
+          _accelMagnitudes.removeAt(0);
       });
     });
 
@@ -365,11 +486,17 @@ class _ScreenTwoState extends State<ScreenTwo> {
       final mag = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
       final time = (DateTime.now().millisecondsSinceEpoch - t0) / 1000.0;
 
-      _rawGyroData.add({'Time (s)': time, 'gyroscope_x': e.x, 'gyroscope_y': e.y, 'gyroscope_z': e.z});
+      _rawGyroData.add({
+        'Time (s)': time,
+        'gyroscope_x': e.x,
+        'gyroscope_y': e.y,
+        'gyroscope_z': e.z,
+      });
       setState(() {
         _gyroscopeData = Vector3(e.x, e.y, e.z);
         _gyroMagnitudes.add(mag);
-        if (_gyroMagnitudes.length > _maxDataPoints) _gyroMagnitudes.removeAt(0);
+        if (_gyroMagnitudes.length > _maxDataPoints)
+          _gyroMagnitudes.removeAt(0);
       });
     });
   }
@@ -381,10 +508,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       setState(() => _secs++);
       // Auto-stop สำหรับแผนแบบ non-interval ด้วย "เป้าระยะรวม"
-      if (_interval == null && _targetDistanceKm > 0 && _distanceKm >= _targetDistanceKm) {
+      if (_interval == null &&
+          _targetDistanceKm > 0 &&
+          _distanceKm >= _targetDistanceKm) {
         t.cancel();
         _stopTraining();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🎉 Goal reached! Session ended.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('🎉 Goal reached! Session ended.')),
+        );
       }
       // เขียนสรุปครั้งคราว
       _writeIntervalUpdateThrottled();
@@ -396,9 +527,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _timer?.cancel();
   }
 
-  double _calculateOverallProgress({double weightTime = 0.5, double weightDistance = 0.5}) {
+  double _calculateOverallProgress({
+    double weightTime = 0.5,
+    double weightDistance = 0.5,
+  }) {
     if (_interval != null && _interval!.totalReps > 0) {
-      final p = (_interval!.repsDone + _interval!.currentLapProgress) / _interval!.totalReps;
+      final p =
+          (_interval!.repsDone + _interval!.currentLapProgress) /
+          _interval!.totalReps;
       return p.clamp(0.0, 1.0);
     }
 
@@ -413,7 +549,9 @@ class _ScreenTwoState extends State<ScreenTwo> {
       pDist = _distanceKm / _targetDistanceKm;
     }
 
-    final p = (pTime.clamp(0.0, 1.0) * weightTime) + (pDist.clamp(0.0, 1.0) * weightDistance);
+    final p =
+        (pTime.clamp(0.0, 1.0) * weightTime) +
+        (pDist.clamp(0.0, 1.0) * weightDistance);
     return p.clamp(0.0, 1.0);
   }
 
@@ -426,7 +564,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
   // ---------------- Flow Start/Stop ----------------
   void _startCountdown() {
     if (_showOverlay) return;
-    setState(() { _countdown = 3; _showOverlay = true; });
+    setState(() {
+      _countdown = 3;
+      _showOverlay = true;
+    });
 
     Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_countdown > 1) {
@@ -441,41 +582,56 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
   void _startTraining() {
     if (_runningType.toLowerCase() == 'rest') {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('วันนี้เป็นวันพักตามแผนครับ')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('วันนี้เป็นวันพักตามแผนครับ')),
+      );
       return;
     }
 
     // reset
-    _rawAccelData.clear(); _rawGyroData.clear();
-    _totalDistanceMeters = 0.0; _lastPosition = null; _distanceKm = 0.0; _secs = 0;
+    _rawAccelData.clear();
+    _rawGyroData.clear();
+    _totalDistanceMeters = 0.0;
+    _lastPosition = null;
+    _distanceKm = 0.0;
+    _secs = 0;
 
     _startSensorStreams();
     _isTraining = true;
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Training started!')));
+    // รีเซ็ตโหมด interval
+    if (_runningType.toLowerCase() == 'interval') {
+      _intervalMode = 'run';
+      _restLeft = 0;
+      if (_interval == null) {
+        _interval = _buildIntervalFromStrings(_runningTargetText);
+      }
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Training started!')));
     _startStopwatch();
     _initLocationService();
 
     // loop ทำนายกิจกรรมทุก 0.5s
     Timer.periodic(const Duration(milliseconds: 500), (t) {
-      if (!_isTraining) { t.cancel(); return; }
+      if (!_isTraining) {
+        t.cancel();
+        return;
+      }
       final features = _extractFeatures(_rawAccelData, _rawGyroData);
       if (features.isNotEmpty) {
         final pred = _predictor.predict(features);
         setState(() => _activity = pred);
       }
     });
-
-    // ถ้าวันนี้เป็น Interval แต่ยังไม่ได้ตั้ง runtime (เผื่อผู้ใช้เข้าเพจตรงนี้ก่อนโหลด doc เสร็จ)
-    if (_runningType.toLowerCase() == 'interval' && _interval == null) {
-      final i = _buildIntervalFromStrings(_runningTargetText);
-      setState(() => _interval = i);
-    }
   }
 
   void _stopTraining() {
     _isTraining = false;
     _stopStopwatch();
+    _restTimer?.cancel();
     _accelSub?.cancel();
     _gyroSub?.cancel();
     _locationSub?.cancel();
@@ -483,57 +639,119 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   // ---------------- Feature Extraction (เดิม) ----------------
-  Map<String, double> _extractFeatures(List<Map<String, double>> accelData, List<Map<String, double>> gyroData) {
+  Map<String, double> _extractFeatures(
+    List<Map<String, double>> accelData,
+    List<Map<String, double>> gyroData,
+  ) {
     const window = 100;
     if (accelData.length < window || gyroData.length < window) return {};
     final ax = accelData.sublist(accelData.length - window);
     final gx = gyroData.sublist(gyroData.length - window);
 
-    List<double> col(List<Map<String, double>> d, String k) => d.map((m) => m[k]!).toList();
-    final aX = col(ax, 'accelerometer_x'), aY = col(ax, 'accelerometer_y'), aZ = col(ax, 'accelerometer_z');
-    final gX = col(gx, 'gyroscope_x'), gY = col(gx, 'gyroscope_y'), gZ = col(gx, 'gyroscope_z');
+    List<double> col(List<Map<String, double>> d, String k) =>
+        d.map((m) => m[k]!).toList();
+    final aX = col(ax, 'accelerometer_x'),
+        aY = col(ax, 'accelerometer_y'),
+        aZ = col(ax, 'accelerometer_z');
+    final gX = col(gx, 'gyroscope_x'),
+        gY = col(gx, 'gyroscope_y'),
+        gZ = col(gx, 'gyroscope_z');
 
-    List<double> mag(List<Map<String, double>> d, String x, String y, String z) =>
-        d.map((m) => sqrt(pow(m[x]!, 2) + pow(m[y]!, 2) + pow(m[z]!, 2))).toList();
-    final aMag = mag(ax, 'accelerometer_x', 'accelerometer_y', 'accelerometer_z');
+    List<double> mag(
+      List<Map<String, double>> d,
+      String x,
+      String y,
+      String z,
+    ) => d
+        .map((m) => sqrt(pow(m[x]!, 2) + pow(m[y]!, 2) + pow(m[z]!, 2)))
+        .toList();
+    final aMag = mag(
+      ax,
+      'accelerometer_x',
+      'accelerometer_y',
+      'accelerometer_z',
+    );
     final gMag = mag(gx, 'gyroscope_x', 'gyroscope_y', 'gyroscope_z');
 
-    double mean(List<double> v) => v.isEmpty ? 0.0 : v.reduce((a, b) => a + b) / v.length;
-    double std(List<double> v, double m) { if (v.length < 2) return 0.0; final s = v.map((x) => pow(x - m, 2)).reduce((a, b) => a + b); return sqrt(s / (v.length - 1)); }
-    double skew(List<double> v, double m, double s) { if (s == 0.0) return 0.0; double sum = 0.0; for (var x in v) sum += pow((x - m) / s, 3); return sum / v.length; }
-    double kurt(List<double> v, double m, double s) { if (s == 0.0) return 0.0; double sum = 0.0; for (var x in v) sum += pow((x - m) / s, 4); return (sum / v.length) - 3.0; }
+    double mean(List<double> v) =>
+        v.isEmpty ? 0.0 : v.reduce((a, b) => a + b) / v.length;
+    double std(List<double> v, double m) {
+      if (v.length < 2) return 0.0;
+      final s = v.map((x) => pow(x - m, 2)).reduce((a, b) => a + b);
+      return sqrt(s / (v.length - 1));
+    }
+
+    double skew(List<double> v, double m, double s) {
+      if (s == 0.0) return 0.0;
+      double sum = 0.0;
+      for (var x in v) sum += pow((x - m) / s, 3);
+      return sum / v.length;
+    }
+
+    double kurt(List<double> v, double m, double s) {
+      if (s == 0.0) return 0.0;
+      double sum = 0.0;
+      for (var x in v) sum += pow((x - m) / s, 4);
+      return (sum / v.length) - 3.0;
+    }
 
     final streams = {
-      'accelerometer_x': aX, 'accelerometer_y': aY, 'accelerometer_z': aZ,
-      'gyroscope_x': gX, 'gyroscope_y': gY, 'gyroscope_z': gZ,
+      'accelerometer_x': aX,
+      'accelerometer_y': aY,
+      'accelerometer_z': aZ,
+      'gyroscope_x': gX,
+      'gyroscope_y': gY,
+      'gyroscope_z': gZ,
     };
 
     final f = <String, double>{};
     for (final e in streams.entries) {
       final m = mean(e.value), s = std(e.value, m);
-      f['${e.key}_mean'] = m; f['${e.key}_std'] = s;
-      f['${e.key}_max'] = e.value.reduce(max); f['${e.key}_min'] = e.value.reduce(min);
-      f['${e.key}_skew'] = skew(e.value, m, s); f['${e.key}_kurtosis'] = kurt(e.value, m, s);
+      f['${e.key}_mean'] = m;
+      f['${e.key}_std'] = s;
+      f['${e.key}_max'] = e.value.reduce(max);
+      f['${e.key}_min'] = e.value.reduce(min);
+      f['${e.key}_skew'] = skew(e.value, m, s);
+      f['${e.key}_kurtosis'] = kurt(e.value, m, s);
     }
     f['acceleration_magnitude_mean'] = mean(aMag);
     f['gyroscope_magnitude_mean'] = mean(gMag);
     return f;
   }
 
-  // ---------------- UI (เดิม) ----------------
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final progress = _calculateOverallProgress();
 
+    final isInterval = _runningType.toLowerCase() == 'interval';
+    final intervalPanel = isInterval && _interval != null
+        ? _buildIntervalPanel(theme)
+        : const SizedBox.shrink();
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Training Details', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2, color: const Color(0xFF212121))),
-        centerTitle: true, backgroundColor: Colors.white, foregroundColor: const Color(0xFF212121), elevation: 0,
+        title: Text(
+          'Training Details',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
+            color: const Color(0xFF212121),
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF212121),
+        elevation: 0,
       ),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)]),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
+          ),
         ),
         child: SingleChildScrollView(
           child: Stack(
@@ -541,89 +759,199 @@ class _ScreenTwoState extends State<ScreenTwo> {
               Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                      elevation: 4, color: Colors.white,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          Text(_runningType, textAlign: TextAlign.center,
-                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3, color: const Color(0xFF212121))),
-                          const SizedBox(height: 12),
-                          Text('Training Progress', textAlign: TextAlign.center,
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: const Color(0xFF212121))),
-                          const SizedBox(height: 10),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: progress, minHeight: 12,
-                              backgroundColor: const Color(0xFFECECEC),
-                              valueColor: const AlwaysStoppedAnimation(Color(0xFFFF6F00)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        elevation: 4,
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                _runningType,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                  color: const Color(0xFF212121),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Training Progress',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF212121),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 12,
+                                  backgroundColor: const Color(0xFFECECEC),
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    Color(0xFFFF6F00),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${(progress * 100).toStringAsFixed(0)}%',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF616161),
+                                ),
+                              ),
+                              const Divider(
+                                height: 24,
+                                thickness: 1,
+                                color: Color(0xFFECECEC),
+                              ),
+
+                              // ---- Interval Panel (ใหม่) ----
+                              intervalPanel,
+
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: 250,
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF3E0),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            _statRow(
+                                              'Time',
+                                              _timeText,
+                                              '${_timeTargetMin} Min',
+                                            ),
+                                            _statRow(
+                                              'Distance',
+                                              _distanceKm.toStringAsFixed(2),
+                                              '${_distanceKm.toStringAsFixed(2)} / $_runningTargetText',
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF3E0),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            _statRow('Activity', _activity, ''),
+                                            _statRow(
+                                              'Speed',
+                                              '$_speedKmhText km/h',
+                                              '',
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SizedBox(
+                            height: 250,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _buildMagnitudeChart(
+                                    title: 'Accel. Magnitude',
+                                    dataPoints: _accelMagnitudes,
+                                    unit: 'm/s²',
+                                    icon: Icons.speed_rounded,
+                                    color: const Color(0xFFFF6F00),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildMagnitudeChart(
+                                    title: 'Gyro. Magnitude',
+                                    dataPoints: _gyroMagnitudes,
+                                    unit: 'rad/s',
+                                    icon: Icons.rotate_right_rounded,
+                                    color: const Color(0xFFFF6F00),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text('${(progress * 100).toStringAsFixed(0)}%', textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF616161))),
-                          const Divider(height: 24, thickness: 1, color: Color(0xFFECECEC)),
-                          SizedBox(
-                            height: 250,
-                            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(10)),
-                                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                    _statRow('Time', _timeText, '${_timeTargetMin} Min'),
-                                    _statRow('Distance', _distanceKm.toStringAsFixed(2), '${_distanceKm.toStringAsFixed(2)} / $_runningTargetText'),
-                                  ]),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(10)),
-                                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                    _statRow('Activity', _activity, ''),
-                                    _statRow('Speed', '$_speedKmhText km/h', ''),
-                                  ]),
-                                ),
-                              ),
-                            ]),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
+                        child: ElevatedButton(
+                          onPressed: _isTraining
+                              ? _stopTraining
+                              : _startCountdown,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            backgroundColor: _isTraining
+                                ? Colors.redAccent
+                                : const Color(0xFFFF6F00),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
                           ),
-                        ]),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 4,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: SizedBox(
-                          height: 250,
-                          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                            Expanded(child: _buildMagnitudeChart(title: 'Accel. Magnitude', dataPoints: _accelMagnitudes, unit: 'm/s²', icon: Icons.speed_rounded, color: const Color(0xFFFF6F00))),
-                            const SizedBox(width: 12),
-                            Expanded(child: _buildMagnitudeChart(title: 'Gyro. Magnitude', dataPoints: _gyroMagnitudes, unit: 'rad/s', icon: Icons.rotate_right_rounded, color: const Color(0xFFFF6F00))),
-                          ]),
+                          child: Text(
+                            _isTraining ? 'STOP' : 'Start',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 4,
-                      child: ElevatedButton(
-                        onPressed: _isTraining ? _stopTraining : _startCountdown,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          backgroundColor: _isTraining ? Colors.redAccent : const Color(0xFFFF6F00),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          elevation: 0,
-                        ),
-                        child: Text(_isTraining ? 'STOP' : 'Start',
-                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: Colors.white)),
-                      ),
-                    ),
-                  ]),
+                    ],
+                  ),
                 ),
               ),
               if (_showOverlay)
@@ -632,8 +960,18 @@ class _ScreenTwoState extends State<ScreenTwo> {
                   child: Center(
                     child: Text(
                       _countdown > 0 ? '$_countdown' : 'GO!',
-                      style: const TextStyle(fontSize: 100, fontWeight: FontWeight.bold, color: Colors.white,
-                        shadows: [Shadow(blurRadius: 10, color: Color(0xFFFF8F00), offset: Offset(2, 2))]),
+                      style: const TextStyle(
+                        fontSize: 100,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 10,
+                            color: Color(0xFFFF8F00),
+                            offset: Offset(2, 2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -644,78 +982,313 @@ class _ScreenTwoState extends State<ScreenTwo> {
     );
   }
 
+  // ---- Interval panel UI (ใหม่) ----
+  Widget _buildIntervalPanel(ThemeData theme) {
+    final seg = _interval!.segmentMeters;
+    final reps = _interval!.totalReps;
+    final lapIdx = _interval!.currentLap.clamp(0, max(0, reps - 1));
+    final done = _interval!.repsDone;
+    final p = _interval!.currentLapProgress;
+
+    final List<double> percents = List.generate(reps, (i) {
+      if (i < done) return 1.0;
+      if (i == done) return p;
+      return 0.0;
+    });
+
+    final modeBadgeColor = _intervalMode == 'rest'
+        ? const Color(0xFF0EA5E9)
+        : const Color(0xFFFF6F00);
+
+    final modeText = _intervalMode == 'rest'
+        ? 'REST • ${_fmtRest(_restLeft)}'
+        : 'RUN • Lap ${min(lapIdx + 1, reps)} / $reps';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: modeBadgeColor.withOpacity(.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                modeText,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: modeBadgeColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${seg.toStringAsFixed(0)} m × $reps',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: const Color(0xFF616161),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Column(
+          children: List.generate(reps, (i) {
+            final percent = percents[i];
+            final curMeters = (i < _interval!.lapMeters.length)
+                ? _interval!.lapMeters[i]
+                : 0.0;
+            final label =
+                'Lap ${i + 1} • ${curMeters.toStringAsFixed(0)} m / ${seg.toStringAsFixed(0)} m';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _LapBar(
+                index: i + 1,
+                percent: percent,
+                overlayLabel: label,
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  String _fmtRest(int s) {
+    final m = (s ~/ 60).toString().padLeft(2, '0');
+    final ss = (s % 60).toString().padLeft(2, '0');
+    return '$m:$ss';
+  }
+
   Widget _statRow(String title, String value, String sub) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2, color: const Color(0xFF212121))),
-        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF616161))),
-        if (sub.isNotEmpty) Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF9E9E9E), fontWeight: FontWeight.w600)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+              color: const Color(0xFF212121),
+            ),
+          ),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF616161),
+            ),
+          ),
+          if (sub.isNotEmpty)
+            Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF9E9E9E),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   // ----- chart helper เดิม -----
-  Widget _buildMagnitudeChart({required String title, required List<double> dataPoints, required Color color, required IconData icon, required String unit}) {
+  Widget _buildMagnitudeChart({
+    required String title,
+    required List<double> dataPoints,
+    required Color color,
+    required IconData icon,
+    required String unit,
+  }) {
     final latest = dataPoints.isEmpty ? 0.0 : dataPoints.last;
     final double maxData = dataPoints.isEmpty ? 1.0 : dataPoints.reduce(max);
     final double maxY = (maxData * 1.1).clamp(1.0, 50.0);
-    final List<FlSpot> spots = dataPoints.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList();
+    final List<FlSpot> spots = dataPoints
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
+        .toList();
 
     return Card(
-      elevation: 4, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.only(top: 15, bottom: 8, left: 8, right: 14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.25), blurRadius: 8, offset: const Offset(0, 3))],
-              ),
-              child: Icon(icon, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Color(0xFF212121)))),
-          ]),
-          const SizedBox(height: 8),
-          const Divider(height: 12, color: Color(0xFFECECEC)),
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 8),
-            child: Text('Current: ${latest.toStringAsFixed(2)} $unit',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF212121))),
-          ),
-          Expanded(
-            child: spots.isEmpty
-                ? const Center(child: Text('Waiting for sensor data...'))
-                : LineChart(
-                    LineChartData(
-                      minX: 0, maxX: _maxDataPoints.toDouble() - 1, minY: 0, maxY: maxY,
-                      titlesData: const FlTitlesData(
-                        show: true,
-                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF6F00).withOpacity(.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
                       ),
-                      gridData: FlGridData(show: true, drawVerticalLine: false,
-                        getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFE0E0E0), strokeWidth: 0.5, dashArray: [5, 5])),
-                      borderData: FlBorderData(show: false),
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: spots, isCurved: true, color: color, barWidth: 3, isStrokeCapRound: true,
-                          dotData: const FlDotData(show: false),
-                          belowBarData: BarAreaData(show: true, color: color.withOpacity(0.28)),
-                        ),
-                      ],
+                    ],
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                      color: Color(0xFF212121),
                     ),
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 12, color: Color(0xFFECECEC)),
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, bottom: 8),
+              child: Text(
+                'Current: ${latest.toStringAsFixed(2)} $unit',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF212121),
+                ),
+              ),
+            ),
+            Expanded(
+              child: spots.isEmpty
+                  ? const Center(child: Text('Waiting for sensor data...'))
+                  : LineChart(
+                      LineChartData(
+                        minX: 0,
+                        maxX: _maxDataPoints.toDouble() - 1,
+                        minY: 0,
+                        maxY: maxY,
+                        titlesData: const FlTitlesData(
+                          show: true,
+                          topTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                        ),
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          getDrawingHorizontalLine: (_) => const FlLine(
+                            color: Color(0xFFE0E0E0),
+                            strokeWidth: 0.5,
+                            dashArray: [5, 5],
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: spots,
+                            isCurved: true,
+                            color: color,
+                            barWidth: 3,
+                            isStrokeCapRound: true,
+                            dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: color.withOpacity(0.28),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LapBar extends StatelessWidget {
+  final int index;
+  final double percent;
+  final String overlayLabel;
+  const _LapBar({
+    required this.index,
+    required this.percent,
+    required this.overlayLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = const Color(0xFFECECEC);
+    final gradient = const LinearGradient(
+      colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+    );
+
+    return SizedBox(
+      height: 22,
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-        ]),
+          FractionallySizedBox(
+            widthFactor: percent.clamp(0.0, 1.0),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF6F00).withOpacity(.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Center(
+              child: Text(
+                overlayLabel,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
