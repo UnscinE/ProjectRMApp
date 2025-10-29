@@ -43,7 +43,7 @@ class HarModelPredictor {
     final options = InterpreterOptions();
 
     options.addDelegate(GpuDelegateV2(options: GpuDelegateOptionsV2()));
-    
+
     // If you were previously using GpuDelegate(), you can add it back,
     // but ensure you have its native dependencies too (tensorflow-lite-gpu).
     // options.addDelegate(GpuDelegate());

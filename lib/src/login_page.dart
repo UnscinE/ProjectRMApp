@@ -33,14 +33,16 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
-        'invalid-email'      => 'อีเมลไม่ถูกต้อง',
-        'user-not-found'     => 'ไม่พบบัญชีนี้',
-        'wrong-password'     => 'รหัสผ่านไม่ถูกต้อง',
-        'too-many-requests'  => 'พยายามมากเกินไป โปรดลองใหม่ภายหลัง',
-        _ => e.message ?? 'เกิดข้อผิดพลาด'
+        'invalid-email' => 'อีเมลไม่ถูกต้อง',
+        'user-not-found' => 'ไม่พบบัญชีนี้',
+        'wrong-password' => 'รหัสผ่านไม่ถูกต้อง',
+        'too-many-requests' => 'พยายามมากเกินไป โปรดลองใหม่ภายหลัง',
+        _ => e.message ?? 'เกิดข้อผิดพลาด',
       };
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -48,15 +50,15 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _goToRegister() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const RegisterPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const RegisterPage()));
   }
 
   void _guestLogin() async {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const DistanceSelectPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const DistanceSelectPage()));
   }
 
   @override
@@ -76,8 +78,13 @@ class _LoginPageState extends State<LoginPage> {
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFAFAFA),
+                  Color(0xFFF5F5F5),
+                  Color(0xFFEEEEEE),
+                ],
               ),
             ),
           ),
@@ -118,13 +125,18 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFFF6F00).withOpacity(.25),
+                                  color: const Color(
+                                    0xFFFF6F00,
+                                  ).withOpacity(.25),
                                   blurRadius: 18,
                                   offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
-                            child: const Icon(Icons.directions_run, color: Colors.white),
+                            child: const Icon(
+                              Icons.directions_run,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -134,7 +146,8 @@ class _LoginPageState extends State<LoginPage> {
                           child: ShaderMask(
                             shaderCallback: (rect) => const LinearGradient(
                               colors: [Color(0xFF212121), Color(0xFFFF6F00)],
-                              begin: Alignment.topLeft, end: Alignment.bottomRight,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ).createShader(rect),
                             child: const Text(
                               'Welcome back 👋',
@@ -159,23 +172,36 @@ class _LoginPageState extends State<LoginPage> {
                             prefixIcon: const Icon(Icons.email_outlined),
                             filled: true,
                             fillColor: const Color(0xFFFAFAFA),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE0E0E0),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE0E0E0),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Color(0xFFFF6F00), width: 1.6),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFFF6F00),
+                                width: 1.6,
+                              ),
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'กรอกอีเมล';
-                            final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v.trim());
+                            if (v == null || v.trim().isEmpty)
+                              return 'กรอกอีเมล';
+                            final ok = RegExp(
+                              r'^[^@]+@[^@]+\.[^@]+$',
+                            ).hasMatch(v.trim());
                             if (!ok) return 'รูปแบบอีเมลไม่ถูกต้อง';
                             return null;
                           },
@@ -191,22 +217,37 @@ class _LoginPageState extends State<LoginPage> {
                             prefixIcon: const Icon(Icons.lock_outline),
                             filled: true,
                             fillColor: const Color(0xFFFAFAFA),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE0E0E0),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE0E0E0),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Color(0xFFFF6F00), width: 1.6),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFFF6F00),
+                                width: 1.6,
+                              ),
                             ),
                             suffixIcon: IconButton(
-                              onPressed: () => setState(() => _obscure = !_obscure),
-                              icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
                             ),
                           ),
                           validator: (v) {
@@ -229,7 +270,9 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFFF6F00).withOpacity(.25),
+                                  color: const Color(
+                                    0xFFFF6F00,
+                                  ).withOpacity(.25),
                                   blurRadius: 16,
                                   offset: const Offset(0, 6),
                                 ),
@@ -239,16 +282,29 @@ class _LoginPageState extends State<LoginPage> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
                               onPressed: _loading ? null : _onLogin,
                               child: _loading
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
                                     )
-                                  : const Text('Sign in', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  : const Text(
+                                      'Sign in',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                             ),
                           ),
                         ),
@@ -258,12 +314,27 @@ class _LoginPageState extends State<LoginPage> {
                         // เส้นคั่น
                         Row(
                           children: [
-                            Expanded(child: Divider(color: const Color(0xFFE0E0E0).withOpacity(.9))),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              child: Text('or', style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF757575))),
+                            Expanded(
+                              child: Divider(
+                                color: const Color(0xFFE0E0E0).withOpacity(.9),
+                              ),
                             ),
-                            Expanded(child: Divider(color: const Color(0xFFE0E0E0).withOpacity(.9))),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              child: Text(
+                                'or',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: const Color(0xFF757575),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: const Color(0xFFE0E0E0).withOpacity(.9),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -272,13 +343,17 @@ class _LoginPageState extends State<LoginPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text("ยังไม่มีบัญชี? ", style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF757575))),
+                            Text(
+                              "ยังไม่มีบัญชี? ",
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: const Color(0xFF757575),
+                              ),
+                            ),
                             TextButton(
                               onPressed: _goToRegister,
                               child: const Text('สร้างบัญชีใหม่'),
                             ),
                             const SizedBox(width: 6),
-                            
                           ],
                         ),
                       ],

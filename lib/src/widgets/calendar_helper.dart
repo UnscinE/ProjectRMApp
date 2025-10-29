@@ -96,11 +96,14 @@ Future<void> exportTrainingPlanToICS({
           .add(Duration(days: (_dayIndex(day) - 1) + (7 * w)))
           .copyWith(hour: startHour, minute: 0, second: 0);
 
-      final endLocal = startLocal.add(Duration(minutes: _guessMinutes(timeTxt)));
+      final endLocal = startLocal.add(
+        Duration(minutes: _guessMinutes(timeTxt)),
+      );
       final uid = '${startLocal.millisecondsSinceEpoch}-$w-$day';
 
-      final title =
-          note.isEmpty || note.toLowerCase() == 'rest' ? 'ฝึกวิ่ง $dist' : '$note • $dist';
+      final title = note.isEmpty || note.toLowerCase() == 'rest'
+          ? 'ฝึกวิ่ง $dist'
+          : '$note • $dist';
 
       final descLines = <String>[
         'โปรแกรมวิ่ง $targetKm กม.',
@@ -131,8 +134,7 @@ Future<void> exportTrainingPlanToICS({
     return;
   }
 
-  final filename =
-      'training_plan_${DateTime.now().millisecondsSinceEpoch}.ics';
+  final filename = 'training_plan_${DateTime.now().millisecondsSinceEpoch}.ics';
   File file;
 
   try {
@@ -183,10 +185,7 @@ Future<void> addStartProgramToCalendar({
       startDate: startDate,
       endDate: endDate,
       allDay: false,
-      recurrence: Recurrence(
-        frequency: Frequency.weekly,
-        endDate: recurEnd,
-      ),
+      recurrence: Recurrence(frequency: Frequency.weekly, endDate: recurEnd),
       iosParams: const IOSParams(reminder: Duration(minutes: 30)),
       androidParams: const AndroidParams(emailInvites: []),
     );
@@ -199,7 +198,8 @@ Future<void> addStartProgramToCalendar({
       '${dt.year}${two(dt.month)}${two(dt.day)}T${two(dt.hour)}${two(dt.minute)}00';
   final dates = '${fmt(startDate)}/${fmt(endDate)}';
 
-  final url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+  final url =
+      'https://calendar.google.com/calendar/render?action=TEMPLATE'
       '&text=${Uri.encodeComponent(title)}'
       '&details=${Uri.encodeComponent('$desc\\n(นัดหมายซ้ำรายสัปดาห์)')}'
       '&dates=$dates';
@@ -237,15 +237,18 @@ Future<List<devcal.Calendar>> getWritableCalendars() async {
       (calsResult.data ?? <devcal.Calendar>[])
           .where((devcal.Calendar c) => c.isReadOnly != true)
           .toList()
-        ..sort((a, b) => ('${a.accountName ?? ''}${a.name ?? ''}')
-            .compareTo('${b.accountName ?? ''}${b.name ?? ''}'));
+        ..sort(
+          (a, b) => ('${a.accountName ?? ''}${a.name ?? ''}').compareTo(
+            '${b.accountName ?? ''}${b.name ?? ''}',
+          ),
+        );
 
   return calendars;
 }
 
 /// dialog เลือกเล่ม (แต่งโทนส้มพรีเมียม + แก้ overflow)
 Future<String?> pickCalendarIdDialog(BuildContext context) async {
-  Future<List<devcal.Calendar>> _load() async {
+  Future<List<devcal.Calendar>> load() async {
     try {
       return await getWritableCalendars();
     } catch (_) {
@@ -254,7 +257,7 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
   }
 
   // โหลดรอบแรก
-  List<devcal.Calendar> calendars = await _load();
+  List<devcal.Calendar> calendars = await load();
 
   final result = await showDialog<String>(
     context: context,
@@ -264,19 +267,19 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
       int scannedSec = 0;
       Timer? timer;
 
-      Future<void> _refresh(StateSetter setState) async {
-        final latest = await _load();
+      Future<void> refresh(StateSetter setState) async {
+        final latest = await load();
         setState(() => calendars = latest);
       }
 
-      Future<void> _startAutoScan(StateSetter setState) async {
+      Future<void> startAutoScan(StateSetter setState) async {
         if (isScanning) return;
         isScanning = true;
         scannedSec = 0;
         timer?.cancel();
         timer = Timer.periodic(const Duration(seconds: 2), (t) async {
           scannedSec += 2;
-          final latest = await _load();
+          final latest = await load();
           setState(() {
             calendars = latest;
           });
@@ -293,7 +296,10 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
           final size = MediaQuery.of(ctx).size;
 
           return Dialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 24,
+            ),
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
@@ -338,8 +344,11 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                           ),
                           child: IconButton(
                             tooltip: 'รีเฟรชรายชื่อ',
-                            onPressed: () => _refresh(setState),
-                            icon: const Icon(Icons.refresh, color: Colors.white),
+                            onPressed: () => refresh(setState),
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -352,7 +361,8 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                           ? ListView.separated(
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               itemCount: calendars.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
                               itemBuilder: (context, i) {
                                 final c = calendars[i];
                                 final title = (c.name ?? 'Calendar').trim();
@@ -365,29 +375,43 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF9FAFB),
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                                      border: Border.all(
+                                        color: const Color(0xFFE5E7EB),
+                                      ),
                                     ),
                                     child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
                                       leading: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
                                           gradient: const LinearGradient(
-                                            colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                                            colors: [
+                                              Color(0xFFFF6F00),
+                                              Color(0xFFFF8F00),
+                                            ],
                                           ),
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: const Color(0xFFFF6F00).withOpacity(.25),
+                                              color: const Color(
+                                                0xFFFF6F00,
+                                              ).withOpacity(.25),
                                               blurRadius: 8,
                                               offset: const Offset(0, 3),
                                             ),
                                           ],
                                         ),
-                                        child: const Icon(Icons.event, color: Colors.white, size: 18),
+                                        child: const Icon(
+                                          Icons.event,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
                                       ),
                                       title: Text(
                                         title,
@@ -407,7 +431,10 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                                               ),
                                             )
                                           : null,
-                                      trailing: const Icon(Icons.chevron_right, color: Color(0xFFBDBDBD)),
+                                      trailing: const Icon(
+                                        Icons.chevron_right,
+                                        color: Color(0xFFBDBDBD),
+                                      ),
                                     ),
                                   ),
                                 );
@@ -427,14 +454,17 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                                   ),
                                   const SizedBox(height: 10),
                                   ElevatedButton.icon(
-                                    onPressed: () => _startAutoScan(setState),
+                                    onPressed: () => startAutoScan(setState),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFFFF6F00),
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                        horizontal: 14,
+                                      ),
                                     ),
                                     icon: const Icon(Icons.search, size: 18),
                                     label: Text(
@@ -460,7 +490,10 @@ Future<String?> pickCalendarIdDialog(BuildContext context) async {
                       label: 'เปิดแอป Calendar',
                       onTap: () async {
                         const url = 'https://calendar.google.com/calendar/';
-                        await launchUrlString(url, mode: LaunchMode.externalApplication);
+                        await launchUrlString(
+                          url,
+                          mode: LaunchMode.externalApplication,
+                        );
                       },
                     ),
                     _CalActionRow(
@@ -488,11 +521,7 @@ class _CalActionRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-  const _CalActionRow({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _CalActionRow({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -549,7 +578,10 @@ Future<void> bulkInsertToDeviceCalendar({
   if (calendars.isEmpty) throw 'ไม่พบปฏิทินที่เขียนได้';
 
   targetCal = calendarId != null
-      ? calendars.firstWhere((c) => c.id == calendarId, orElse: () => calendars.first)
+      ? calendars.firstWhere(
+          (c) => c.id == calendarId,
+          orElse: () => calendars.first,
+        )
       : calendars.first;
 
   for (int w = 0; w < totalWeeks; w++) {
@@ -565,14 +597,16 @@ Future<void> bulkInsertToDeviceCalendar({
       final startLocal = week1StartDate
           .add(Duration(days: (_dayIndex(day) - 1) + (7 * w)))
           .copyWith(hour: startHour, minute: 0, second: 0);
-      final endLocal =
-          startLocal.add(Duration(minutes: _guessMinutes(timeTxt)));
+      final endLocal = startLocal.add(
+        Duration(minutes: _guessMinutes(timeTxt)),
+      );
 
       final tzStart = tz.TZDateTime.from(startLocal, tz.local);
       final tzEnd = tz.TZDateTime.from(endLocal, tz.local);
 
-      final title =
-          note.isEmpty || note.toLowerCase() == 'rest' ? 'ฝึกวิ่ง $dist' : '$note • $dist';
+      final title = note.isEmpty || note.toLowerCase() == 'rest'
+          ? 'ฝึกวิ่ง $dist'
+          : '$note • $dist';
 
       final descLines = <String>[
         'โปรแกรมวิ่ง $targetKm กม.',
@@ -606,17 +640,32 @@ Future<void> addTodaysPlanToDeviceCalendar({
   final calendars = await getWritableCalendars();
   if (calendars.isEmpty) throw 'ไม่พบปฏิทินที่เขียนได้';
   final targetCal = calendarId != null
-      ? calendars.firstWhere((c) => c.id == calendarId, orElse: () => calendars.first)
+      ? calendars.firstWhere(
+          (c) => c.id == calendarId,
+          orElse: () => calendars.first,
+        )
       : calendars.first;
 
   final today = DateTime.now();
-  final d0 = DateTime(week1StartDate.year, week1StartDate.month, week1StartDate.day);
+  final d0 = DateTime(
+    week1StartDate.year,
+    week1StartDate.month,
+    week1StartDate.day,
+  );
   final diffDays = today.difference(d0).inDays;
   if (diffDays < 0) throw 'ยังไม่ถึงสัปดาห์ที่ 1';
   final weekIndex = (diffDays ~/ 7);
   if (weekIndex >= totalWeeks) throw 'เกินช่วงโปรแกรมแล้ว';
 
-  const names = {1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun'};
+  const names = {
+    1: 'Mon',
+    2: 'Tue',
+    3: 'Wed',
+    4: 'Thu',
+    5: 'Fri',
+    6: 'Sat',
+    7: 'Sun',
+  };
   final weekPlan = planByWeeks[weekIndex.clamp(0, planByWeeks.length - 1)];
   final row = weekPlan.firstWhere(
     (r) => (r['day'] ?? '') == names[today.weekday],
@@ -664,7 +713,8 @@ Future<void> debugPrintCalendars() async {
     print('---- Calendars from provider ----');
     for (final c in list) {
       print(
-          'id=${c.id} | name=${c.name} | account=${c.accountName} | isReadOnly=${c.isReadOnly}');
+        'id=${c.id} | name=${c.name} | account=${c.accountName} | isReadOnly=${c.isReadOnly}',
+      );
     }
   } catch (e) {
     print('debugPrintCalendars error: $e');

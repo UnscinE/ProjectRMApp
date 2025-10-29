@@ -5,7 +5,8 @@ class CountdownOverlayExample extends StatefulWidget {
   const CountdownOverlayExample({super.key});
 
   @override
-  State<CountdownOverlayExample> createState() => _CountdownOverlayExampleState();
+  State<CountdownOverlayExample> createState() =>
+      _CountdownOverlayExampleState();
 }
 
 class _CountdownOverlayExampleState extends State<CountdownOverlayExample> {
@@ -39,9 +40,9 @@ class _CountdownOverlayExampleState extends State<CountdownOverlayExample> {
 
   void _startTraining() {
     print('🏃 Training Started!');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Training started!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Training started!')));
   }
 
   @override
@@ -55,7 +56,10 @@ class _CountdownOverlayExampleState extends State<CountdownOverlayExample> {
             child: ElevatedButton(
               onPressed: _startCountdown,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 60),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 24,
+                  horizontal: 60,
+                ),
                 backgroundColor: Colors.lightBlueAccent,
               ),
               child: const Text(

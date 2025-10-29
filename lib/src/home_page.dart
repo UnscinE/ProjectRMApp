@@ -1,21 +1,13 @@
-// lib/src/home_page.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:rmapp/src/trainingtask_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'run_page.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/schedule_tab.dart';
 import 'tabs/calendar_tab.dart';
 import 'tabs/trainning2_tab.dart';
 import 'tabs/account_tab.dart';
-
-import 'distance_select_page.dart';
-import 'duration_select_page.dart';
 import 'program_repo.dart' as repo;
+import 'distance_select_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,260 +17,91 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _index = 0;
-  int targetKm = 5;
-  int trainingWeeks = 4;
-
-  bool isLoading = true;
-  StreamSubscription? _userDocSub;
-  bool _navigatingToSelect = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _bootstrap();
-  }
-
-  @override
-  void dispose() {
-    _userDocSub?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _bootstrap() async {
-    await _loadLocalFallback();
-    await _ensureProgramSelected();
-    _listenUserPrefs();
-    if (mounted) setState(() => isLoading = false);
-  }
-
-  Future<void> _loadLocalFallback() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final km = prefs.getInt('program_distance');
-      final weeks = prefs.getInt('program_duration');
-      if (km != null && weeks != null && mounted) {
-        setState(() {
-          targetKm = km;
-          trainingWeeks = weeks;
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _ensureProgramSelected() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasDistance = prefs.containsKey('program_distance');
-    final hasDuration = prefs.containsKey('program_duration');
-    if (hasDistance && hasDuration) {
-      setState(() {
-        targetKm = prefs.getInt('program_distance')!;
-        trainingWeeks = prefs.getInt('program_duration')!;
-      });
-      return;
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        final data = await repo.ProgramRepo
-            .fetchActive(user.uid)
-            .timeout(const Duration(seconds: 6));
-
-        if (data != null) {
-          final dist = (data['distance'] as num?)?.toInt();
-          final weeks = (data['duration_choice'] as num?)?.toInt() ??
-              ((data['duration'] is List && (data['duration'] as List).isNotEmpty)
-                  ? ((data['duration'] as List).first as num).toInt()
-                  : null);
-
-          if (dist != null && weeks != null) {
-            await prefs.setInt('program_distance', dist);
-            await prefs.setInt('program_duration', weeks);
-            if (mounted) {
-              setState(() {
-                targetKm = dist;
-                trainingWeeks = weeks;
-              });
-            }
-            return;
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (!_navigatingToSelect && mounted) {
-      _navigatingToSelect = true;
-
-      final ok1 = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => const DistanceSelectPage()),
-      );
-      if (ok1 != true || !mounted) {
-        _navigatingToSelect = false;
-        return;
-      }
-
-      final ok2 = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => const DurationSelectPage()),
-      );
-      _navigatingToSelect = false;
-
-      final km = prefs.getInt('program_distance') ?? targetKm;
-      final w = prefs.getInt('program_duration') ?? trainingWeeks;
-      if (mounted) {
-        setState(() {
-          targetKm = km;
-          trainingWeeks = w;
-        });
-      }
-    }
-  }
-
-  void _listenUserPrefs() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    _userDocSub?.cancel();
-    _userDocSub = repo.ProgramRepo.basicStream(user.uid).listen((data) async {
-      if (data == null) return;
-
-      final dist = (data['distance'] as num?)?.toInt();
-      final weeks = (data['duration_choice'] as num?)?.toInt() ??
-          ((data['duration'] is List && (data['duration'] as List).isNotEmpty)
-              ? ((data['duration'] as List).first as num).toInt()
-              : null);
-
-      if (dist == null || weeks == null) return;
-
-      final prefs = await SharedPreferences.getInstance();
-      if (!prefs.containsKey('program_distance')) {
-        await prefs.setInt('program_distance', dist);
-      }
-      if (!prefs.containsKey('program_duration')) {
-        await prefs.setInt('program_duration', weeks);
-      }
-
-      if (!mounted) return;
-      setState(() {
-        targetKm = dist;
-        trainingWeeks = weeks;
-      });
-    }, onError: (_) {});
-  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text('Please log in.')));
+    }
 
-    final tabs = <Widget>[
-      DashboardTab(
-        targetKm: targetKm,
-        trainingWeeks: trainingWeeks,
-        onContinue: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ScreenTwo()),
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: repo.ProgramRepo.programStream(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
-        },
-        email: user?.email ?? 'Runner',
-      ),
-      ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
-      const CalendarTab(),
-      const Trainning2Tab(),
-      AccountTab(
-        email: user?.email ?? 'Runner',
-        displayName: user?.displayName,
-        onSignOut: () async {
-          await FirebaseAuth.instance.signOut();
-          _userDocSub?.cancel();
-          if (mounted) setState(() => _index = 0);
-        },
-      ),
-    ];
+        }
 
-    return Scaffold(
-      // ทำพื้นหลังหน้า Home เป็นไล่สีเทาอ่อน (โทนเดียวกับทั้งแอป)
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+        if (!snapshot.hasData ||
+            snapshot.data!['distance'] == null ||
+            snapshot.data!['duration_choice'] == null) {
+          return const DistanceSelectPage();
+        }
+
+        final targetKm = snapshot.data!['distance'] as int;
+        final trainingWeeks = snapshot.data!['duration_choice'] as int;
+
+        final tabs = <Widget>[
+          DashboardTab(
+            targetKm: targetKm,
+            trainingWeeks: trainingWeeks,
+            onContinue: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ScreenTwo()));
+            },
+            email: user.email ?? 'Runner',
           ),
-        ),
-        child: SafeArea(
-          child: isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFFFF6F00)),
-                  ),
-                )
-              : IndexedStack(index: _index, children: tabs),
-        ),
-      ),
-
-      // แต่ง NavigationBar ให้เป็นธีมส้ม-เทา
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          height: 72,
-          backgroundColor: const Color(0xFFF7F7F7),
-          elevation: 0,
-          indicatorColor: const Color(0xFFFF6F00).withOpacity(.14),
-          labelTextStyle: MaterialStateProperty.resolveWith<TextStyle?>(
-            (states) {
-              final selected = states.contains(MaterialState.selected);
-              return TextStyle(
-                fontWeight: FontWeight.w800,
-                letterSpacing: selected ? 0.2 : 0.1,
-                color: selected
-                    ? const Color(0xFF212121)
-                    : const Color(0xFF757575),
-              );
+          ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
+          const CalendarTab(),
+          const Trainning2Tab(),
+          AccountTab(
+            email: user.email ?? 'Runner',
+            displayName: user.displayName,
+            onSignOut: () async {
+              await FirebaseAuth.instance.signOut();
             },
           ),
-          iconTheme: MaterialStateProperty.resolveWith<IconThemeData?>(
-            (states) {
-              final selected = states.contains(MaterialState.selected);
-              return IconThemeData(
-                color: selected
-                    ? const Color(0xFFFF6F00)
-                    : const Color(0xFF9E9E9E),
-              );
-            },
+        ];
+
+        return Scaffold(
+          body: IndexedStack(index: _index, children: tabs),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.card_travel_outlined),
+                selectedIcon: Icon(Icons.card_travel),
+                label: 'Plans',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined),
+                selectedIcon: Icon(Icons.calendar_month),
+                label: 'Calendar',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.run_circle_outlined),
+                selectedIcon: Icon(Icons.run_circle),
+                label: 'Training',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.account_circle_outlined),
+                selectedIcon: Icon(Icons.account_circle),
+                label: 'Account',
+              ),
+            ],
           ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.card_travel_outlined),
-              selectedIcon: Icon(Icons.card_travel),
-              label: 'Plans',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              selectedIcon: Icon(Icons.calendar_month),
-              label: 'Calendar',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.run_circle_outlined),
-              selectedIcon: Icon(Icons.run_circle),
-              label: 'Training',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.account_circle_outlined),
-              selectedIcon: Icon(Icons.account_circle),
-              label: 'Account',
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

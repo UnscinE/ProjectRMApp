@@ -39,16 +39,16 @@ class DistanceSelectPage extends StatelessWidget {
     }
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('บันทึกค่าไม่ได้: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('บันทึกค่าไม่ได้: $error')));
       return;
     }
 
     if (context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const DurationSelectPage()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const DurationSelectPage()));
     }
   }
 
@@ -75,7 +75,9 @@ class DistanceSelectPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'ระบบจะใช้ระยะทางนี้เพื่อสร้างตารางฝึกที่เหมาะสม',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[700],
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -144,18 +146,22 @@ class _DistanceCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('5 KM',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      )),
+                  const Text(
+                    '5 KM',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text('เริ่มต้นสำหรับผู้ฝึกพื้นฐาน',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 13,
-                      )),
+                  Text(
+                    'เริ่มต้นสำหรับผู้ฝึกพื้นฐาน',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
             ),

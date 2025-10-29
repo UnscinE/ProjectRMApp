@@ -1,6 +1,5 @@
 // lib/src/tabs/calendar_tab.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:device_calendar/device_calendar.dart' as devcal;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -17,9 +16,9 @@ class CalendarTab extends StatefulWidget {
 class _CalendarTabState extends State<CalendarTab> {
   final _plugin = devcal.DeviceCalendarPlugin();
 
-  late DateTime _visibleMonth;                // วันที่ 1 ของเดือนที่กำลังแสดง
-  String? _calendarId;                        // id เล่มที่เลือก
-  String? _calendarTitle;                     // ชื่อเล่มไว้โชว์
+  late DateTime _visibleMonth; // วันที่ 1 ของเดือนที่กำลังแสดง
+  String? _calendarId; // id เล่มที่เลือก
+  String? _calendarTitle; // ชื่อเล่มไว้โชว์
   bool _loading = true;
   String? _error;
 
@@ -63,8 +62,10 @@ class _CalendarTabState extends State<CalendarTab> {
 
       // 2) ตั้งชื่อเล่มไว้โชว์ใต้หัวข้อ
       final calsRes = await _plugin.retrieveCalendars();
-      final cal = (calsRes.data ?? <devcal.Calendar>[])
-          .firstWhere((c) => c.id == _calendarId, orElse: () => devcal.Calendar());
+      final cal = (calsRes.data ?? <devcal.Calendar>[]).firstWhere(
+        (c) => c.id == _calendarId,
+        orElse: () => devcal.Calendar(),
+      );
       _calendarTitle = [
         (cal.name ?? 'Calendar'),
         if ((cal.accountName ?? '').isNotEmpty) '• ${cal.accountName}',
@@ -87,8 +88,11 @@ class _CalendarTabState extends State<CalendarTab> {
     _eventsByDay.clear();
 
     final start = DateTime(_visibleMonth.year, _visibleMonth.month, 1);
-    final end = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1)
-        .subtract(const Duration(seconds: 1));
+    final end = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month + 1,
+      1,
+    ).subtract(const Duration(seconds: 1));
     final tzStart = tz.TZDateTime.from(start, tz.local);
     final tzEnd = tz.TZDateTime.from(end, tz.local);
 
@@ -100,7 +104,9 @@ class _CalendarTabState extends State<CalendarTab> {
 
     for (final e in events) {
       final dt = (e.start?.toLocal() ?? start);
-      if (dt.month != _visibleMonth.month || dt.year != _visibleMonth.year) continue;
+      if (dt.month != _visibleMonth.month || dt.year != _visibleMonth.year) {
+        continue;
+      }
       final d = dt.day;
       (_eventsByDay[d] ??= <devcal.Event>[]).add(e);
     }
@@ -115,52 +121,51 @@ class _CalendarTabState extends State<CalendarTab> {
   }
 
   Future<void> _pickMonth() async {
-  final picked = await showDatePicker(
-    context: context,
-    initialDate: _visibleMonth,
-    firstDate: DateTime(2015, 1, 1),
-    lastDate: DateTime(2100, 12, 31),
-    helpText: 'เลือกเดือน',
-    // 👇 แต่งปอปอัพตรงนี้
-    builder: (ctx, child) {
-      final base = Theme.of(ctx);
-      return Theme(
-        data: base.copyWith(
-          colorScheme: base.colorScheme.copyWith(
-            primary: const Color(0xFFFF6F00),   // สีไฮไลต์/ปุ่ม OK
-            onPrimary: Colors.white,
-            surface: Colors.white,
-            onSurface: const Color(0xFF212121),
-          ),
-          datePickerTheme: const DatePickerThemeData(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(22)),
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _visibleMonth,
+      firstDate: DateTime(2015, 1, 1),
+      lastDate: DateTime(2100, 12, 31),
+      helpText: 'เลือกเดือน',
+      // 👇 แต่งปอปอัพตรงนี้
+      builder: (ctx, child) {
+        final base = Theme.of(ctx);
+        return Theme(
+          data: base.copyWith(
+            colorScheme: base.colorScheme.copyWith(
+              primary: const Color(0xFFFF6F00), // สีไฮไลต์/ปุ่ม OK
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: const Color(0xFF212121),
             ),
-            headerBackgroundColor: Color(0xFFFF8F00),
-            headerForegroundColor: Colors.white,
-            dayStyle: TextStyle(fontWeight: FontWeight.w700),
-            todayForegroundColor: WidgetStatePropertyAll(Color(0xFFFF6F00)),
-            todayBackgroundColor: WidgetStatePropertyAll(Color(0x1AFF6F00)),
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFFF6F00), // ปุ่ม Cancel
-              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+            datePickerTheme: const DatePickerThemeData(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(22)),
+              ),
+              headerBackgroundColor: Color(0xFFFF8F00),
+              headerForegroundColor: Colors.white,
+              dayStyle: TextStyle(fontWeight: FontWeight.w700),
+              todayForegroundColor: WidgetStatePropertyAll(Color(0xFFFF6F00)),
+              todayBackgroundColor: WidgetStatePropertyAll(Color(0x1AFF6F00)),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFFF6F00), // ปุ่ม Cancel
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ),
-        ),
-        child: child!,
-      );
-    },
-  );
-  if (picked != null) {
-    setState(() => _visibleMonth = DateTime(picked.year, picked.month, 1));
-    setState(() => _loading = true);
-    await _loadMonthEvents();
-    if (mounted) setState(() => _loading = false);
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _visibleMonth = DateTime(picked.year, picked.month, 1));
+      setState(() => _loading = true);
+      await _loadMonthEvents();
+      if (mounted) setState(() => _loading = false);
+    }
   }
-}
-
 
   Future<void> _changeCalendar() async {
     final picked = await pickCalendarIdDialog(context);
@@ -170,16 +175,26 @@ class _CalendarTabState extends State<CalendarTab> {
   }
 
   Future<void> _prevMonth() async {
-    setState(() => _visibleMonth =
-        DateTime(_visibleMonth.year, _visibleMonth.month - 1, 1));
+    setState(
+      () => _visibleMonth = DateTime(
+        _visibleMonth.year,
+        _visibleMonth.month - 1,
+        1,
+      ),
+    );
     setState(() => _loading = true);
     await _loadMonthEvents();
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _nextMonth() async {
-    setState(() => _visibleMonth =
-        DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1));
+    setState(
+      () => _visibleMonth = DateTime(
+        _visibleMonth.year,
+        _visibleMonth.month + 1,
+        1,
+      ),
+    );
     setState(() => _loading = true);
     await _loadMonthEvents();
     if (mounted) setState(() => _loading = false);
@@ -188,10 +203,15 @@ class _CalendarTabState extends State<CalendarTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final daysInMonth =
-        DateUtils.getDaysInMonth(_visibleMonth.year, _visibleMonth.month);
-    final firstWeekday =
-        DateTime(_visibleMonth.year, _visibleMonth.month, 1).weekday; // Mon=1..Sun=7
+    final daysInMonth = DateUtils.getDaysInMonth(
+      _visibleMonth.year,
+      _visibleMonth.month,
+    );
+    final firstWeekday = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month,
+      1,
+    ).weekday; // Mon=1..Sun=7
     final leadingEmpty = (firstWeekday - 1) % 7;
     final totalCells = leadingEmpty + daysInMonth;
     final trailingEmpty = (totalCells % 7 == 0) ? 0 : (7 - (totalCells % 7));
@@ -204,7 +224,8 @@ class _CalendarTabState extends State<CalendarTab> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
           colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5)],
         ),
       ),
@@ -235,7 +256,10 @@ class _CalendarTabState extends State<CalendarTab> {
                     borderRadius: BorderRadius.circular(22),
                     onTap: _pickMonth,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
@@ -260,7 +284,11 @@ class _CalendarTabState extends State<CalendarTab> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Icon(Icons.expand_more, color: Colors.white, size: 18),
+                          const Icon(
+                            Icons.expand_more,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ],
                       ),
                     ),
@@ -294,7 +322,10 @@ class _CalendarTabState extends State<CalendarTab> {
 
               // แถบชื่อวัน
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
@@ -308,18 +339,20 @@ class _CalendarTabState extends State<CalendarTab> {
                 ),
                 child: Row(
                   children: const ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
-                      .map((d) => Expanded(
-                            child: Center(
-                              child: Text(
-                                d,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF757575),
-                                  letterSpacing: 0.3,
-                                ),
+                      .map(
+                        (d) => Expanded(
+                          child: Center(
+                            child: Text(
+                              d,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF757575),
+                                letterSpacing: 0.3,
                               ),
                             ),
-                          ))
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -344,51 +377,60 @@ class _CalendarTabState extends State<CalendarTab> {
                   child: _loading
                       ? const Center(child: CircularProgressIndicator())
                       : _error != null
-                          ? Center(
-                              child: Text(
-                                'ผิดพลาด: $_error',
-                                style: const TextStyle(
-                                  color: Color(0xFFDC2626),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            )
-                          : GridView.builder(
-                              physics: const BouncingScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      ? Center(
+                          child: Text(
+                            'ผิดพลาด: $_error',
+                            style: const TextStyle(
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          physics: const BouncingScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 7,
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 12,
                                 childAspectRatio: 0.82,
                               ),
-                              itemCount: gridCount,
-                              itemBuilder: (context, index) {
-                                if (index < leadingEmpty) return const SizedBox.shrink();
-                                final day = index - leadingEmpty + 1;
-                                if (day > daysInMonth) return const SizedBox.shrink();
+                          itemCount: gridCount,
+                          itemBuilder: (context, index) {
+                            if (index < leadingEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            final day = index - leadingEmpty + 1;
+                            if (day > daysInMonth) {
+                              return const SizedBox.shrink();
+                            }
 
-                                final isToday = isThisMonth && day == now.day;
-                                final events = _eventsByDay[day] ?? const <devcal.Event>[];
-                                final hasEvent = events.isNotEmpty;
+                            final isToday = isThisMonth && day == now.day;
+                            final events =
+                                _eventsByDay[day] ?? const <devcal.Event>[];
+                            final hasEvent = events.isNotEmpty;
 
-                                return _DayCell(
-                                  day: day,
-                                  isToday: isToday,
-                                  hasEvent: hasEvent,
-                                  eventCount: events.length,
-                                  onTap: hasEvent
-                                      ? () => _showDayEvents(context, day, events)
-                                      : null,
-                                );
-                              },
-                            ),
+                            return _DayCell(
+                              day: day,
+                              isToday: isToday,
+                              hasEvent: hasEvent,
+                              eventCount: events.length,
+                              onTap: hasEvent
+                                  ? () => _showDayEvents(context, day, events)
+                                  : null,
+                            );
+                          },
+                        ),
                 ),
               ),
 
               const SizedBox(height: 20),
 
               // สรุป (นับจากอีเวนต์จริง)
-              _SummaryBar(visibleMonth: _visibleMonth, eventsByDay: _eventsByDay),
+              _SummaryBar(
+                visibleMonth: _visibleMonth,
+                eventsByDay: _eventsByDay,
+              ),
             ],
           ),
         ),
@@ -396,7 +438,11 @@ class _CalendarTabState extends State<CalendarTab> {
     );
   }
 
-  void _showDayEvents(BuildContext context, int day, List<devcal.Event> events) {
+  void _showDayEvents(
+    BuildContext context,
+    int day,
+    List<devcal.Event> events,
+  ) {
     final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
@@ -413,7 +459,9 @@ class _CalendarTabState extends State<CalendarTab> {
               children: [
                 Text(
                   'กิจกรรมวันที่ $day ${_thaiMonth(_visibleMonth.month)} ${_visibleMonth.year + 543}',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Expanded(
@@ -429,8 +477,15 @@ class _CalendarTabState extends State<CalendarTab> {
                           : (st != null ? _hhmm(st) : '-');
 
                       return ListTile(
-                        leading: const Icon(Icons.event_note, color: Color(0xFFFF6F00)),
-                        title: Text((e.title ?? '').isEmpty ? '(ไม่มีชื่อเรื่อง)' : e.title!),
+                        leading: const Icon(
+                          Icons.event_note,
+                          color: Color(0xFFFF6F00),
+                        ),
+                        title: Text(
+                          (e.title ?? '').isEmpty
+                              ? '(ไม่มีชื่อเรื่อง)'
+                              : e.title!,
+                        ),
                         subtitle: Text(time),
                       );
                     },
@@ -474,20 +529,22 @@ class _DayCell extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             gradient: isToday
-                ? const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)])
+                ? const LinearGradient(
+                    colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                  )
                 : null,
             color: isToday
                 ? null
                 : hasEvent
-                    ? const Color(0xFFF5F5F5)
-                    : Colors.transparent,
+                ? const Color(0xFFF5F5F5)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isToday
                   ? Colors.transparent
                   : hasEvent
-                      ? const Color(0xFFE0E0E0)
-                      : const Color(0xFFEEEEEE),
+                  ? const Color(0xFFE0E0E0)
+                  : const Color(0xFFEEEEEE),
               width: 1.5,
             ),
             boxShadow: isToday
@@ -514,28 +571,38 @@ class _DayCell extends StatelessWidget {
                       color: isToday
                           ? Colors.white
                           : hasEvent
-                              ? const Color(0xFF212121)
-                              : const Color(0xFFBDBDBD),
+                          ? const Color(0xFF212121)
+                          : const Color(0xFFBDBDBD),
                       letterSpacing: -0.3,
                     ),
                   ),
                   const SizedBox(height: 4),
                   if (isToday)
                     Container(
-                      width: 5, height: 5,
+                      width: 5,
+                      height: 5,
                       decoration: const BoxDecoration(
-                        color: Colors.white, shape: BoxShape.circle),
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
                     )
                   else if (hasEvent)
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.circle, size: 6, color: Color(0xFFFF6F00)),
+                        const Icon(
+                          Icons.circle,
+                          size: 6,
+                          color: Color(0xFFFF6F00),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '$eventCount',
                           style: const TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF757575)),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF757575),
+                          ),
                         ),
                       ],
                     ),
@@ -564,7 +631,9 @@ class _SummaryBar extends StatelessWidget {
       final date = DateTime(visibleMonth.year, visibleMonth.month, d);
       if (date.isBefore(DateTime(now.year, now.month, now.day))) {
         done += evs.length;
-      } else if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      } else if (date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day) {
         doing += evs.length;
       } else {
         todo += evs.length;
@@ -576,17 +645,30 @@ class _SummaryBar extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(.12), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: color.withOpacity(.12),
+              shape: BoxShape.circle,
+            ),
             child: Icon(icon, size: 20, color: color),
           ),
           const SizedBox(height: 6),
-          Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w900, color: const Color(0xFF212121), letterSpacing: -0.5,
-          )),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF212121),
+              letterSpacing: -0.5,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(
-            color: Color(0xFF757575), fontWeight: FontWeight.w600, fontSize: 12,
-          )),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF757575),
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
         ],
       );
     }
@@ -594,15 +676,32 @@ class _SummaryBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(blurRadius: 12, offset: const Offset(0, 3), color: Colors.black.withOpacity(.05))],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(.05),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          item(Icons.check_circle, 'เสร็จแล้ว', '$done', const Color(0xFF10B981)),
+          item(
+            Icons.check_circle,
+            'เสร็จแล้ว',
+            '$done',
+            const Color(0xFF10B981),
+          ),
           Container(width: 1, height: 40, color: const Color(0xFFE0E0E0)),
-          item(Icons.trending_up, 'กำลังฝึก', '$doing', const Color(0xFFFF6F00)),
+          item(
+            Icons.trending_up,
+            'กำลังฝึก',
+            '$doing',
+            const Color(0xFFFF6F00),
+          ),
           Container(width: 1, height: 40, color: const Color(0xFFE0E0E0)),
           item(Icons.schedule, 'รอฝึก', '$todo', const Color(0xFF9E9E9E)),
         ],
@@ -634,7 +733,19 @@ class _RoundIconButton extends StatelessWidget {
 }
 
 String _thaiMonth(int m) {
-  const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
-    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const months = [
+    'มกราคม',
+    'กุมภาพันธ์',
+    'มีนาคม',
+    'เมษายน',
+    'พฤษภาคม',
+    'มิถุนายน',
+    'กรกฎาคม',
+    'สิงหาคม',
+    'กันยายน',
+    'ตุลาคม',
+    'พฤศจิกายน',
+    'ธันวาคม',
+  ];
   return months[m - 1];
 }

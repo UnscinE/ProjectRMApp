@@ -37,9 +37,9 @@ class DurationSelectPage extends StatelessWidget {
     }
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('บันทึกค่าไม่ได้: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('บันทึกค่าไม่ได้: $error')));
       return;
     }
 
@@ -85,8 +85,12 @@ class DurationSelectPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          km != null ? 'โปรแกรมระยะทาง: $km KM' : 'โปรแกรมระยะทาง: -',
-                          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                          km != null
+                              ? 'โปรแกรมระยะทาง: $km KM'
+                              : 'โปรแกรมระยะทาง: -',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey[700],
+                          ),
                         ),
                       ],
                     );
@@ -96,18 +100,35 @@ class DurationSelectPage extends StatelessWidget {
 
                 Row(
                   children: [
-                    Expanded(child: _WeekCard(weeks: 8,  onTap: () => _chooseWeeks(context, 8))),
+                    Expanded(
+                      child: _WeekCard(
+                        weeks: 8,
+                        onTap: () => _chooseWeeks(context, 8),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: _WeekCard(weeks: 12, onTap: () => _chooseWeeks(context, 12))),
+                    Expanded(
+                      child: _WeekCard(
+                        weeks: 12,
+                        onTap: () => _chooseWeeks(context, 12),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: _WeekCard(weeks: 16, onTap: () => _chooseWeeks(context, 16))),
+                    Expanded(
+                      child: _WeekCard(
+                        weeks: 16,
+                        onTap: () => _chooseWeeks(context, 16),
+                      ),
+                    ),
                   ],
                 ),
 
                 const SizedBox(height: 16),
                 Text(
                   'เลือก 8 / 12 / 16 สัปดาห์ เพื่อเริ่มโปรแกรม',
-                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[700],
+                  ),
                 ),
               ],
             ),
@@ -141,10 +162,7 @@ class _WeekCard extends StatelessWidget {
           children: [
             Text(
               '$weeks',
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-              ),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 2),
             const Text('สัปดาห์', style: TextStyle(fontSize: 12)),

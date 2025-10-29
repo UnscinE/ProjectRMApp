@@ -4,7 +4,6 @@ import 'package:rmapp/src/training_repo.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Device calendar
 import 'package:device_calendar/device_calendar.dart' as devcal;
@@ -47,15 +46,15 @@ class _DashboardTabState extends State<DashboardTab> {
 
   // แผนของวันนี้
   String _runningType = 'Long Run';
-  String _runningTargetText = ''; // เช่น "3 KM"
-  int _timeTargetMin = 0; // นาที
+  String _runningTargetText = 'N/A';
+  final int _timeTargetMin = 0; // นาที
   double _targetDistanceKm = 0.0; // กิโลเมตร (parse จาก _runningTargetText)
 
   // ค่าขณะฝึก
-  bool _isTraining = false;
-  String _activity = 'getting data';
-  double _distanceKm = 0.0; // ระยะทางที่ทำได้ (km)
-  String _speedKmhText = '0.00';
+  final bool _isTraining = false;
+  final String _activity = 'getting data';
+  final double _distanceKm = 0.0; // ระยะทางที่ทำได้ (km)
+  final String _speedKmhText = '0.00';
 
   late String formattedPace; // แสดงบน UI
 
@@ -65,13 +64,10 @@ class _DashboardTabState extends State<DashboardTab> {
     tz.initializeTimeZones();
     _loadInitialData();
     _loadProgramId();
-
-    
   }
 
   Future<void> _loadInitialData() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    // เลือก program id แบบง่าย ๆ (คุณจะเปลี่ยนให้ดึงจริงจาก repo ก็ได้)
     _currentProgramId ??= '3AUgieOoHsrQ8Bl8AcTl';
 
     await _loadTodayFromDeviceCalendar();
@@ -106,16 +102,14 @@ class _DashboardTabState extends State<DashboardTab> {
           String s => double.tryParse(s) ?? 0.0,
           _ => 0.0,
         };
-        sum += v; // v เป็น 0..100
+        sum += v;
       }
 
       final avg100 = days == 0 ? 0.0 : sum / days;
       if (mounted) {
         setState(() => _averageSuccessPercent = (avg100 / 100).clamp(0, 1));
       }
-    } catch (_) {
-      /* ignore */
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadTodayFromDeviceCalendar() async {
@@ -206,7 +200,6 @@ class _DashboardTabState extends State<DashboardTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // ต้องมีเมธอดนี้ใน training_repo.dart
     final programIdList = await TrainingRepo.fetchCurrentProgramId(user.uid);
     setState(() => _currentProgramId = programIdList?.first);
 
@@ -220,7 +213,6 @@ class _DashboardTabState extends State<DashboardTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _currentProgramId == null) return;
 
-    // ใช้ฟอร์แมตเดียวกับฝั่งบันทึก: dd-MM-yyyy
     final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
     final docRef = FirebaseFirestore.instance
         .collection('users')
@@ -244,24 +236,18 @@ class _DashboardTabState extends State<DashboardTab> {
 
       final data = snap.data()!;
       final distanceText = (data['distance_km']?.toString() ?? '').trim();
-      final timeText = (data['duration_s']?.toString() ?? '')
-          .trim(); // ตอนนี้ทราบว่าเป็น "วินาที"
+      final timeText = (data['duration_s']?.toString() ?? '').trim();
       final typeText = (data['type']?.toString() ?? 'Rest').trim();
 
-      //'${paceMinutes}:${paceSeconds.toString().padLeft(2, '0')}
       final timeectext = int.parse(timeText);
-      final timemin = timeectext ~/ 60; // นาทีเต็ม
+      final timemin = timeectext ~/ 60;
       final timeseconds = timeectext % 60;
 
-      _Totaltime = '${timemin}:${timeseconds.toString().padLeft(2, '0')}';
+      _Totaltime = '$timemin:${timeseconds.toString().padLeft(2, '0')}';
 
-      // ดึงตัวเลขวินาทีทั้งหมดจาก timeText
-      // สมมติว่า timeText มีรูปแบบ เช่น "1260 s" หรือ "21 Min" (ถ้ายังเก็บเป็นนาที แต่ใช้ field เป็น duration_s)
-      // **แต่ถ้าแน่ใจว่าเป็นวินาที ให้ดึงเป็นวินาทีทั้งหมด**
       final totalSeconds =
           int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
-      // ดึงตัวเลขกิโลเมตรจาก distanceText
       final distanceNum =
           double.tryParse(distanceText.replaceAll(RegExp(r'[^0-9.]'), '')) ??
           0.0;
@@ -269,8 +255,6 @@ class _DashboardTabState extends State<DashboardTab> {
       setState(() {
         _runningType = typeText;
         _runningTargetText = distanceNum.toStringAsFixed(2);
-        // เปลี่ยนมาใช้ตัวแปรชื่อที่บ่งบอกว่าเป็นวินาที เช่น _timeTargetSec หรือ _totalTargetSeconds
-        // **ต้องประกาศตัวแปร int _timeTargetSec ใน State Class ของคุณ**
         _timeTargetSec = totalSeconds;
         _targetDistanceKm = distanceNum;
       });
@@ -284,43 +268,29 @@ class _DashboardTabState extends State<DashboardTab> {
     }
   }
 
-  // อย่าลืมเปลี่ยนชื่อตัวแปร _timeTargetMin เป็น int _timeTargetSec; ใน State Class
-  // และเพิ่ม String _targetPaceText; ด้วย
-
   Future<void> Calculatepace() async {
-    // *** แก้ไข: ต้องใช้ await เพื่อรอให้ _loadTodayPlan ดึงข้อมูลเสร็จก่อน ***
     await _loadTodayPlan();
 
-    // ตรวจสอบว่ามีระยะทางเป้าหมายหรือไม่
     if (_targetDistanceKm > 0) {
-      // 1. คำนวณเพซเป็นหน่วยวินาทีต่อกิโลเมตร (Sec/Km)
       final paceSecPerKm = _timeTargetSec / _targetDistanceKm;
-
-      // 2. แปลง Pace (Sec/Km) เป็นรูปแบบ นาที:วินาที/กม.
-      final totalPaceSeconds = paceSecPerKm
-          .round(); // วินาทีทั้งหมดสำหรับ 1 กม. (ปัดเศษ)
+      final totalPaceSeconds = paceSecPerKm.round();
 
       final paceMinutes = totalPaceSeconds ~/ 60; // นาทีเต็ม
       final paceSeconds = totalPaceSeconds % 60; // เศษวินาที
 
-      // 3. จัดรูปแบบให้แสดงผลสวยงาม เช่น "5:30 /Km"
-      // ใช้ final String แทนการกำหนดค่าให้ตัวแปรที่ไม่ได้ประกาศ
       final String formattedPace =
-          '${paceMinutes}:${paceSeconds.toString().padLeft(2, '0')}';
+          '$paceMinutes:${paceSeconds.toString().padLeft(2, '0')}';
 
       setState(() {
-        // อัปเดตตัวแปรใน State Class เพื่อแสดงผลใน UI
         _targetPaceText = formattedPace;
         print('Calculated Pace: $formattedPace');
       });
     } else if (_timeTargetSec > 0 && _targetDistanceKm == 0.0) {
-      // กรณีมีเวลาเป้าหมาย แต่ไม่มีระยะทางเป้าหมาย (Time Run)
       setState(() {
         _targetPaceText = 'N/A (Time Run)';
         print('Pace N/A (Time Run)');
       });
     } else {
-      // กรณีที่ไม่มีทั้งเวลาและระยะทาง (No Plan / Rest)
       setState(() {
         _targetPaceText = 'N/A';
         print('Pace N/A');

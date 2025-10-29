@@ -25,10 +25,9 @@ class AuthGate extends StatelessWidget {
   }
 
   Future<bool> _hasProgramSelected(User user) async {
-    // ย้าย current -> active ถ้ามีตกค้าง
     await repo.ProgramRepo.cleanupProgramDocs(user.uid);
 
-    final data = await repo.ProgramRepo.fetchActive(user.uid);
+    final data = await repo.ProgramRepo.fetchProgram(user.uid);
     final hasDistance = (data?['distance'] as num?) != null;
     final hasDuration =
         (data?['duration_choice'] as num?) != null ||
@@ -42,7 +41,9 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final user = snap.data;
@@ -55,7 +56,9 @@ class AuthGate extends StatelessWidget {
           })(),
           builder: (context, prog) {
             if (prog.connectionState != ConnectionState.done) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
             final selected = prog.data == true;
             return selected ? const HomePage() : const DistanceSelectPage();
