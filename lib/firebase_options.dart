@@ -85,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'rmapp-66582.firebasestorage.app',
     measurementId: 'G-LLG4GPK79L',
   );
+
 }

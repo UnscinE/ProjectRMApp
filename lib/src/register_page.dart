@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'auth_gate.dart';
-
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
   @override
@@ -29,9 +27,9 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _onRegister() async {
     if (!_formKey.currentState!.validate()) return;
     if (_passCtrl.text != _confirmCtrl.text) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')),
+      );
       return;
     }
     setState(() => _loading = true);
@@ -40,24 +38,15 @@ class _RegisterPageState extends State<RegisterPage> {
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text,
       );
-
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuthGate()),
-          (route) => false,
-        );
-      }
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
-        'invalid-email' => 'อีเมลไม่ถูกต้อง',
-        'weak-password' => 'รหัสผ่านอ่อนเกินไป (อย่างน้อย 6 ตัวอักษร)',
-        _ => e.message ?? 'เกิดข้อผิดพลาด',
+        'invalid-email'        => 'อีเมลไม่ถูกต้อง',
+        'weak-password'        => 'รหัสผ่านอ่อนเกินไป (อย่างน้อย 6 ตัวอักษร)',
+        _ => e.message ?? 'เกิดข้อผิดพลาด'
       };
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -81,13 +70,8 @@ class _RegisterPageState extends State<RegisterPage> {
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFAFAFA),
-                  Color(0xFFF5F5F5),
-                  Color(0xFFEEEEEE),
-                ],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
               ),
             ),
           ),
@@ -126,18 +110,13 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFFFF6F00,
-                                  ).withOpacity(.25),
+                                  color: const Color(0xFFFF6F00).withOpacity(.25),
                                   blurRadius: 18,
                                   offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.person_add_alt_1,
-                              color: Colors.white,
-                            ),
+                            child: const Icon(Icons.person_add_alt_1, color: Colors.white),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -164,36 +143,23 @@ class _RegisterPageState extends State<RegisterPage> {
                             prefixIcon: const Icon(Icons.email_outlined),
                             filled: true,
                             fillColor: const Color(0xFFFAFAFA),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 14,
-                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFF6F00),
-                                width: 1.6,
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFFF6F00), width: 1.6),
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
-                              return 'กรอกอีเมล';
-                            final ok = RegExp(
-                              r'^[^@]+@[^@]+\.[^@]+$',
-                            ).hasMatch(v.trim());
+                            if (v == null || v.trim().isEmpty) return 'กรอกอีเมล';
+                            final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v.trim());
                             if (!ok) return 'รูปแบบอีเมลไม่ถูกต้อง';
                             return null;
                           },
@@ -209,37 +175,22 @@ class _RegisterPageState extends State<RegisterPage> {
                             prefixIcon: const Icon(Icons.lock_outline),
                             filled: true,
                             fillColor: const Color(0xFFFAFAFA),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 14,
-                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFF6F00),
-                                width: 1.6,
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFFF6F00), width: 1.6),
                             ),
                             suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => _obscure1 = !_obscure1),
-                              icon: Icon(
-                                _obscure1
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                              ),
+                              onPressed: () => setState(() => _obscure1 = !_obscure1),
+                              icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
                             ),
                           ),
                           validator: (v) {
@@ -259,37 +210,22 @@ class _RegisterPageState extends State<RegisterPage> {
                             prefixIcon: const Icon(Icons.lock_reset),
                             filled: true,
                             fillColor: const Color(0xFFFAFAFA),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 14,
-                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFF6F00),
-                                width: 1.6,
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFFF6F00), width: 1.6),
                             ),
                             suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => _obscure2 = !_obscure2),
-                              icon: Icon(
-                                _obscure2
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                              ),
+                              onPressed: () => setState(() => _obscure2 = !_obscure2),
+                              icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
                             ),
                           ),
                           validator: (v) {
@@ -311,9 +247,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFFFF6F00,
-                                  ).withOpacity(.25),
+                                  color: const Color(0xFFFF6F00).withOpacity(.25),
                                   blurRadius: 16,
                                   offset: const Offset(0, 6),
                                 ),
@@ -323,9 +257,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
                               onPressed: _loading ? null : _onRegister,
                               child: _loading
@@ -334,18 +266,10 @@ class _RegisterPageState extends State<RegisterPage> {
                                       width: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                       ),
                                     )
-                                  : const Text(
-                                      'Create account',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
+                                  : const Text('Create account', style: TextStyle(fontWeight: FontWeight.w700)),
                             ),
                           ),
                         ),

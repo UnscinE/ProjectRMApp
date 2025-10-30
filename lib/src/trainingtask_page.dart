@@ -1,3 +1,4 @@
+// lib/src/trainingtask_page.dart
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -33,14 +34,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
   // แผนของวันนี้
   String _runningType = 'Long Run';
   String _runningTargetText = ''; // เช่น "3 KM"
-  int _timeTargetMin = 0; // นาที
+  int _timeTargetMin = 0;         // นาที
   double _targetDistanceKm = 0.0; // กิโลเมตร (parse จาก _runningTargetText)
 
   // ค่าขณะฝึก
   bool _isTraining = false;
   String _activity = 'getting data';
-  double _distanceKm = 0.0; // ระยะทางที่ทำได้ (km)
-  String _speedKmhText = '0.00'; // แสดงบน UI
+  double _distanceKm = 0.0;       // ระยะทางที่ทำได้ (km)
+  String _speedKmhText = '0.00';  // แสดงบน UI
 
   // Stopwatch
   Timer? _timer;
@@ -125,18 +126,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
       }
 
       final data = snap.data()!;
-      final distanceText = (data['distance']?.toString() ?? '')
-          .trim(); // เช่น "3 KM" หรือ "400 m × 4"
-      final timeText = (data['time']?.toString() ?? '').trim(); // เช่น "21 Min"
+      final distanceText = (data['distance']?.toString() ?? '').trim(); // เช่น "3 KM" หรือ "400 m × 4"
+      final timeText = (data['time']?.toString() ?? '').trim();         // เช่น "21 Min"
       final typeText = (data['type']?.toString() ?? 'Rest').trim();
 
       // ดึงตัวเลขนาทีจาก timeText
-      final minutesNum =
-          int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final minutesNum = int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       // ดึงตัวเลขกิโลเมตรจาก distanceText
-      final distanceNum =
-          double.tryParse(distanceText.replaceAll(RegExp(r'[^0-9.]'), '')) ??
-          0.0;
+      final distanceNum = double.tryParse(distanceText.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
 
       setState(() {
         _runningType = typeText;
@@ -161,9 +158,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final dateKey = DateFormat('dd-MM-yyyy').format(DateTime.now());
 
     final totalDistanceKm = _totalDistanceMeters / 1000.0;
-    final avgSpeedKph = _secs == 0
-        ? 0.0
-        : (totalDistanceKm / (_secs / 3600)); // km/h
+    final avgSpeedKph = _secs == 0 ? 0.0 : (totalDistanceKm / (_secs / 3600)); // km/h
     String two(int n) => n.toString().padLeft(2, '0');
     final durationStr =
         '${two(Duration(seconds: _secs).inHours)}:'
@@ -171,16 +166,13 @@ class _ScreenTwoState extends State<ScreenTwo> {
         '${two(_secs % 60)}';
 
     // คำนวณ progress 0..100 จากเวลา/ระยะทางแบบถัวเฉลี่ย
-    final progress01 = _calculateOverallProgress(); // 0..1
+    final progress01 = _calculateOverallProgress();        // 0..1
     final progressBar = (progress01 * 100).round().clamp(0, 100);
 
     final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('Program')
-        .doc(_currentProgramId!)
-        .collection('Training')
-        .doc(dateKey);
+        .collection('users').doc(user.uid)
+        .collection('Program').doc(_currentProgramId!)
+        .collection('Training').doc(dateKey);
 
     final data = {
       'date': Timestamp.now(),
@@ -212,32 +204,29 @@ class _ScreenTwoState extends State<ScreenTwo> {
       }
     }
 
-    _locationSub =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 1,
-          ),
-        ).listen((pos) {
-          if (!mounted) return;
+    _locationSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 1,
+      ),
+    ).listen((pos) {
+      if (!mounted) return;
 
-          setState(() {
-            _currentSpeedMs = (pos.speed).abs();
-            _speedKmhText = (_currentSpeedMs * 3.6).toStringAsFixed(2);
+      setState(() {
+        _currentSpeedMs = (pos.speed).abs();
+        _speedKmhText = (_currentSpeedMs * 3.6).toStringAsFixed(2);
 
-            if (_lastPosition != null) {
-              final inc = Geolocator.distanceBetween(
-                _lastPosition!.latitude,
-                _lastPosition!.longitude,
-                pos.latitude,
-                pos.longitude,
-              );
-              _totalDistanceMeters += inc;
-              _distanceKm = _totalDistanceMeters / 1000.0;
-            }
-            _lastPosition = pos;
-          });
-        });
+        if (_lastPosition != null) {
+          final inc = Geolocator.distanceBetween(
+            _lastPosition!.latitude, _lastPosition!.longitude,
+            pos.latitude, pos.longitude,
+          );
+          _totalDistanceMeters += inc;
+          _distanceKm = _totalDistanceMeters / 1000.0;
+        }
+        _lastPosition = pos;
+      });
+    });
   }
 
   // ---------------- Sensors ----------------
@@ -316,10 +305,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   /// รวมความคืบหน้าจาก "เวลา" + "ระยะทาง" (ถ้ามีแผน)
-  double _calculateOverallProgress({
-    double weightTime = 0.5,
-    double weightDistance = 0.5,
-  }) {
+  double _calculateOverallProgress({double weightTime = 0.5, double weightDistance = 0.5}) {
     double pTime = 0.0;
     if (_timeTargetMin > 0) {
       final targetSecs = _timeTargetMin * 60;
@@ -331,9 +317,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
       pDist = _distanceKm / _targetDistanceKm;
     }
 
-    final p =
-        (pTime.clamp(0.0, 1.0) * weightTime) +
-        (pDist.clamp(0.0, 1.0) * weightDistance);
+    final p = (pTime.clamp(0.0, 1.0) * weightTime) +
+              (pDist.clamp(0.0, 1.0) * weightDistance);
     return p.clamp(0.0, 1.0);
   }
 
@@ -374,9 +359,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
     _startSensorStreams();
     _isTraining = true;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Training started!')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Training started!')));
 
     _startStopwatch();
     _initLocationService();
@@ -427,21 +411,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final gY = col(gx, 'gyroscope_y');
     final gZ = col(gx, 'gyroscope_z');
 
-    List<double> mag(
-      List<Map<String, double>> d,
-      String x,
-      String y,
-      String z,
-    ) => d
-        .map((m) => sqrt(pow(m[x]!, 2) + pow(m[y]!, 2) + pow(m[z]!, 2)))
-        .toList();
+    List<double> mag(List<Map<String, double>> d, String x, String y, String z) =>
+        d.map((m) => sqrt(pow(m[x]!, 2) + pow(m[y]!, 2) + pow(m[z]!, 2))).toList();
 
-    final aMag = mag(
-      ax,
-      'accelerometer_x',
-      'accelerometer_y',
-      'accelerometer_z',
-    );
+    final aMag = mag(ax, 'accelerometer_x', 'accelerometer_y', 'accelerometer_z');
     final gMag = mag(gx, 'gyroscope_x', 'gyroscope_y', 'gyroscope_z');
 
     double mean(List<double> v) =>
@@ -456,18 +429,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
     double skew(List<double> v, double m, double s) {
       if (s == 0.0) return 0.0;
       double sum = 0.0;
-      for (var x in v) {
-        sum += pow((x - m) / s, 3);
-      }
+      for (var x in v) sum += pow((x - m) / s, 3);
       return sum / v.length;
     }
 
     double kurt(List<double> v, double m, double s) {
       if (s == 0.0) return 0.0;
       double sum = 0.0;
-      for (var x in v) {
-        sum += pow((x - m) / s, 4);
-      }
+      for (var x in v) sum += pow((x - m) / s, 4);
       return (sum / v.length) - 3.0;
     }
 
@@ -523,52 +492,33 @@ class _ScreenTwoState extends State<ScreenTwo> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6F00).withOpacity(.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 18),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)]),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [BoxShadow(color: const Color(0xFFFF6F00).withOpacity(.25), blurRadius: 8, offset: const Offset(0, 3))],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
-                      color: Color(0xFF212121),
-                    ),
-                  ),
+                child: Icon(icon, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Color(0xFF212121)),
                 ),
-              ],
-            ),
+              ),
+            ]),
             const SizedBox(height: 8),
             const Divider(height: 12, color: Color(0xFFECECEC)),
             Padding(
               padding: const EdgeInsets.only(left: 4.0, bottom: 8),
               child: Text(
                 'Current: ${latest.toStringAsFixed(2)} $unit',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF212121),
-                ),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF212121)),
               ),
             ),
             Expanded(
@@ -582,18 +532,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
                         maxY: maxY,
                         titlesData: const FlTitlesData(
                           show: true,
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
+                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                         ),
                         gridData: FlGridData(
                           show: true,
@@ -613,10 +555,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
                             barWidth: 3,
                             isStrokeCapRound: true,
                             dotData: const FlDotData(show: false),
-                            belowBarData: BarAreaData(
-                              show: true,
-                              color: color.withOpacity(0.28),
-                            ),
+                            belowBarData: BarAreaData(show: true, color: color.withOpacity(0.28)),
                           ),
                         ],
                       ),
@@ -652,8 +591,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
           ),
         ),
@@ -668,9 +606,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
                     children: [
                       // ---- Progress Card ----
                       Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
                         elevation: 4,
                         color: Colors.white,
                         child: Padding(
@@ -703,9 +639,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                   value: progress,
                                   minHeight: 12,
                                   backgroundColor: const Color(0xFFECECEC),
-                                  valueColor: const AlwaysStoppedAnimation(
-                                    Color(0xFFFF6F00),
-                                  ),
+                                  valueColor: const AlwaysStoppedAnimation(Color(0xFFFF6F00)),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -717,39 +651,23 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                   color: const Color(0xFF616161),
                                 ),
                               ),
-                              const Divider(
-                                height: 24,
-                                thickness: 1,
-                                color: Color(0xFFECECEC),
-                              ),
+                              const Divider(height: 24, thickness: 1, color: Color(0xFFECECEC)),
                               SizedBox(
                                 height: 250,
                                 child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
                                     Expanded(
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFFFF3E0),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            _statRow(
-                                              'Time',
-                                              _timeText,
-                                              '$_timeTargetMin Min',
-                                            ),
-                                            _statRow(
-                                              'Distance',
-                                              _distanceKm.toStringAsFixed(2),
-                                              '${_distanceKm.toStringAsFixed(2)} / $_runningTargetText',
-                                            ),
+                                            _statRow('Time', _timeText, '${_timeTargetMin} Min'),
+                                            _statRow('Distance', _distanceKm.toStringAsFixed(2), '${_distanceKm.toStringAsFixed(2)} / $_runningTargetText'),
                                           ],
                                         ),
                                       ),
@@ -759,20 +677,13 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFFFF3E0),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             _statRow('Activity', _activity, ''),
-                                            _statRow(
-                                              'Speed',
-                                              '$_speedKmhText km/h',
-                                              '',
-                                            ),
+                                            _statRow('Speed', '$_speedKmhText km/h', ''),
                                           ],
                                         ),
                                       ),
@@ -789,9 +700,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
                       // ---- Charts ----
                       Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 4,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -829,22 +738,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
                       // ---- Start/Stop ----
                       Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 4,
                         child: ElevatedButton(
-                          onPressed: _isTraining
-                              ? _stopTraining
-                              : _startCountdown,
+                          onPressed: _isTraining ? _stopTraining : _startCountdown,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 24),
-                            backgroundColor: _isTraining
-                                ? Colors.redAccent
-                                : const Color(0xFFFF6F00),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                            backgroundColor: _isTraining ? Colors.redAccent : const Color(0xFFFF6F00),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             elevation: 0,
                           ),
                           child: Text(
@@ -871,13 +772,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
                         fontSize: 100,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 10,
-                            color: Color(0xFFFF8F00),
-                            offset: Offset(2, 2),
-                          ),
-                        ],
+                        shadows: [Shadow(blurRadius: 10, color: Color(0xFFFF8F00), offset: Offset(2, 2))],
                       ),
                     ),
                   ),
@@ -896,33 +791,10 @@ class _ScreenTwoState extends State<ScreenTwo> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
-              color: const Color(0xFF212121),
-            ),
-          ),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF616161),
-            ),
-          ),
+          Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2, color: const Color(0xFF212121))),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF616161))),
           if (sub.isNotEmpty)
-            Text(
-              sub,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF9E9E9E),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF9E9E9E), fontWeight: FontWeight.w600)),
         ],
       ),
     );

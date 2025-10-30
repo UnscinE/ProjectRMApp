@@ -213,129 +213,128 @@ class _Trainning2TabState extends State<Trainning2Tab> {
   // ---------------- UI blocks ----------------
 
   Widget _planCard(ThemeData theme) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          blurRadius: 12,
-          offset: const Offset(0, 3),
-          color: Colors.black.withOpacity(.06),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(.06),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF6F00).withOpacity(.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6F00), Color(0xFFFF8F00)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF6F00).withOpacity(.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: const Icon(
-                Icons.directions_run,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Today Plan',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF212121),
-                  letterSpacing: -0.3,
+                  child: const Icon(Icons.directions_run,
+                      color: Colors.white, size: 20),
                 ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                _runningType,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: const Color(0xFF10B981),
-                  fontWeight: FontWeight.w700,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Today Plan',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF212121),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ),
-              ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _runningType,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: const Color(0xFF10B981),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _statCell(
+                    theme,
+                    headline: 'ระยะทาง',
+                    value: _runningTarget,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _statCell(
+                    theme,
+                    headline: 'เวลา',
+                    value: _timeTarget,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _statCell(
-                theme,
-                headline: 'ระยะทาง',
-                value: _runningTarget,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _statCell(theme, headline: 'เวลา', value: _timeTarget),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+      );
 
   Widget _dateTimeCard(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          blurRadius: 10,
-          offset: const Offset(0, 2),
-          color: Colors.black.withOpacity(.05),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(.05),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _InfoItem(
-          icon: Icons.calendar_today,
-          label: 'วันที่',
-          value: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _InfoItem(
+              icon: Icons.calendar_today,
+              label: 'วันที่',
+              value: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+            ),
+            Container(width: 1, height: 36, color: const Color(0xFFE0E0E0)),
+            _InfoItem(
+              icon: Icons.access_time,
+              label: 'เวลา',
+              value: TimeOfDay.now().format(context),
+            ),
+          ],
         ),
-        Container(width: 1, height: 36, color: const Color(0xFFE0E0E0)),
-        _InfoItem(
-          icon: Icons.access_time,
-          label: 'เวลา',
-          value: TimeOfDay.now().format(context),
-        ),
-      ],
-    ),
-  );
+      );
 
   Widget _summaryTodayCard(ThemeData theme) {
     final stream = _todayDocStream();
     if (stream == null) {
-      return _emptyCard(
-        theme,
-        'ยังไม่ได้เข้าสู่ระบบ หรือยังไม่มีโปรแกรมที่ใช้งานอยู่',
-      );
+      return _emptyCard(theme, 'ยังไม่ได้เข้าสู่ระบบ หรือยังไม่มีโปรแกรมที่ใช้งานอยู่');
     }
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: stream,
@@ -348,9 +347,8 @@ class _Trainning2TabState extends State<Trainning2Tab> {
         }
 
         final data = snap.data!.data() ?? {};
-        final progress = ((data['progress_bar_percent'] ?? 0) as num)
-            .clamp(0, 100)
-            .toDouble();
+        final progress =
+            ((data['progress_bar_percent'] ?? 0) as num).clamp(0, 100).toDouble();
         final distanceKm = ((data['distance_km'] ?? 0) as num).toDouble();
         final duration = (data['duration_display'] ?? '-') as String;
         final avgSpeed = (data['average_speed_kph'] ?? '0').toString();
@@ -389,11 +387,8 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.timeline,
-                      color: Colors.white,
-                      size: 18,
-                    ),
+                    child: const Icon(Icons.timeline,
+                        color: Colors.white, size: 18),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -415,7 +410,8 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                   value: (progress / 100.0).clamp(0.0, 1.0),
                   minHeight: 10,
                   backgroundColor: const Color(0xFFECECEC),
-                  valueColor: const AlwaysStoppedAnimation(Color(0xFF10B981)),
+                  valueColor:
+                      const AlwaysStoppedAnimation(Color(0xFF10B981)),
                 ),
               ),
               const SizedBox(height: 6),
@@ -439,7 +435,11 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _statCell(theme, headline: 'เวลา', value: duration),
+                    child: _statCell(
+                      theme,
+                      headline: 'เวลา',
+                      value: duration,
+                    ),
                   ),
                 ],
               ),
@@ -471,47 +471,47 @@ class _Trainning2TabState extends State<Trainning2Tab> {
   }
 
   Widget _emptyCard(ThemeData theme, String text) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE0E0E0)),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF616161),
-              fontWeight: FontWeight.w600,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF616161),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _loadingCard() => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation(Color(0xFFFF6F00)),
             ),
           ),
         ),
-      ],
-    ),
-  );
-
-  Widget _loadingCard() => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE0E0E0)),
-    ),
-    child: const Center(
-      child: SizedBox(
-        width: 28,
-        height: 28,
-        child: CircularProgressIndicator(
-          strokeWidth: 3,
-          valueColor: AlwaysStoppedAnimation(Color(0xFFFF6F00)),
-        ),
-      ),
-    ),
-  );
+      );
 
   Widget _statCell(
     ThemeData theme, {

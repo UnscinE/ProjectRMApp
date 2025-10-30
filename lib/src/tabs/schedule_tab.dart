@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/calendar_helper.dart' as cal;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../training_repo.dart'; // ProgramRepo.createProgram(...)
+import 'package:intl/intl.dart';
 
 class ScheduleTab extends StatefulWidget {
   final int weeks;
@@ -49,12 +50,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
         return const [
           {'day': 'Mon', 'dist': '3 KM', 'time': '21 Min', 'note': 'Long run'},
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {
-            'day': 'Wed',
-            'dist': '400 m × 4',
-            'time': '1:30 / 3:50',
-            'note': 'Interval',
-          },
+          {'day': 'Wed', 'dist': '400 m × 4', 'time': '1:30 / 3:50', 'note': 'Interval'},
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Fri', 'dist': '2 KM', 'time': '14 Min', 'note': 'Recovery'},
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
@@ -62,26 +58,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
         ];
       case 1:
         return const [
-          {
-            'day': 'Mon',
-            'dist': '3.5 KM',
-            'time': '24 Min',
-            'note': 'Long run',
-          },
+          {'day': 'Mon', 'dist': '3.5 KM', 'time': '24 Min', 'note': 'Long run'},
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {
-            'day': 'Wed',
-            'dist': '400 m × 5',
-            'time': '1:30 / 3:45',
-            'note': 'Interval',
-          },
+          {'day': 'Wed', 'dist': '400 m × 5', 'time': '1:30 / 3:45', 'note': 'Interval'},
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {
-            'day': 'Fri',
-            'dist': '2.5 KM',
-            'time': '16 Min',
-            'note': 'Recovery',
-          },
+          {'day': 'Fri', 'dist': '2.5 KM', 'time': '16 Min', 'note': 'Recovery'},
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Sun', 'dist': '2.5 KM', 'time': '15 Min', 'note': 'Tempo'},
         ];
@@ -89,12 +70,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
         return const [
           {'day': 'Mon', 'dist': '4 KM', 'time': '27 Min', 'note': 'Long run'},
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {
-            'day': 'Wed',
-            'dist': '400 m × 6',
-            'time': '1:25 / 3:40',
-            'note': 'Interval',
-          },
+          {'day': 'Wed', 'dist': '400 m × 6', 'time': '1:25 / 3:40', 'note': 'Interval'},
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Fri', 'dist': '3 KM', 'time': '19 Min', 'note': 'Recovery'},
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
@@ -102,26 +78,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
         ];
       default:
         return const [
-          {
-            'day': 'Mon',
-            'dist': '4.5 KM',
-            'time': '30 Min',
-            'note': 'Long run',
-          },
+          {'day': 'Mon', 'dist': '4.5 KM', 'time': '30 Min', 'note': 'Long run'},
           {'day': 'Tue', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {
-            'day': 'Wed',
-            'dist': '400 m × 6',
-            'time': '1:20 / 3:35',
-            'note': 'Interval',
-          },
+          {'day': 'Wed', 'dist': '400 m × 6', 'time': '1:20 / 3:35', 'note': 'Interval'},
           {'day': 'Thu', 'dist': '-', 'time': '-', 'note': 'Rest'},
-          {
-            'day': 'Fri',
-            'dist': '3.5 KM',
-            'time': '22 Min',
-            'note': 'Recovery',
-          },
+          {'day': 'Fri', 'dist': '3.5 KM', 'time': '22 Min', 'note': 'Recovery'},
           {'day': 'Sat', 'dist': '-', 'time': '-', 'note': 'Rest'},
           {'day': 'Sun', 'dist': '3.5 KM', 'time': '21 Min', 'note': 'Tempo'},
         ];
@@ -240,9 +201,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
     }
 
     try {
-      final cals = await cal.getWritableCalendars().catchError(
-        (_) => <dynamic>[],
-      );
+      final cals = await cal.getWritableCalendars().catchError((_) => <dynamic>[]);
       String source = 'device_calendar';
       String? calId;
       String? calTitle;
@@ -297,9 +256,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ล้มเหลว: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ล้มเหลว: $e')),
+      );
     }
   }
 
@@ -333,16 +292,13 @@ class _ScheduleTabState extends State<ScheduleTab> {
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                       color: Colors.black.withOpacity(.06),
-                    ),
+                    )
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _ReadonlyPill(
-                      icon: Icons.bookmark_border,
-                      text: _calendarTitle,
-                    ),
+                    _ReadonlyPill(icon: Icons.bookmark_border, text: _calendarTitle),
                     const SizedBox(height: 16),
 
                     // week chips
@@ -356,26 +312,24 @@ class _ScheduleTabState extends State<ScheduleTab> {
                               onTap: () {
                                 setState(() {
                                   _selectedWeeks = w;
-                                  _weekIndex = _weekIndex.clamp(
-                                    0,
-                                    _selectedWeeks - 1,
-                                  );
+                                  _weekIndex =
+                                      _weekIndex.clamp(0, _selectedWeeks - 1);
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 decoration: BoxDecoration(
                                   gradient: sel
                                       ? const LinearGradient(
                                           colors: [
                                             Color(0xFFFF6F00),
-                                            Color(0xFFFF8F00),
+                                            Color(0xFFFF8F00)
                                           ],
                                         )
                                       : null,
-                                  color: sel ? null : const Color(0xFFF5F5F5),
+                                  color:
+                                      sel ? null : const Color(0xFFF5F5F5),
                                   borderRadius: BorderRadius.circular(12),
                                   border: sel
                                       ? null
@@ -386,12 +340,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                   boxShadow: sel
                                       ? [
                                           BoxShadow(
-                                            color: const Color(
-                                              0xFFFF6F00,
-                                            ).withOpacity(.25),
+                                            color: const Color(0xFFFF6F00)
+                                                .withOpacity(.25),
                                             blurRadius: 12,
                                             offset: const Offset(0, 4),
-                                          ),
+                                          )
                                         ]
                                       : null,
                                 ),
@@ -424,9 +377,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: const Color(0xFFFF6F00),
-                                width: 2,
-                              ),
+                                  color: const Color(0xFFFF6F00), width: 2),
                             ),
                             child: OutlinedButton.icon(
                               onPressed: _chooseOrCreateCalendar,
@@ -437,12 +388,10 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                 backgroundColor: Colors.transparent,
                                 side: BorderSide.none,
                                 textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.3,
-                                ),
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
+                                    borderRadius: BorderRadius.circular(14)),
                               ),
                             ),
                           ),
@@ -461,27 +410,22 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                   color: Color(0xFFFF6F00).withOpacity(.3),
                                   blurRadius: 16,
                                   offset: Offset(0, 6),
-                                ),
+                                )
                               ],
                             ),
                             child: FilledButton.icon(
                               onPressed: () =>
                                   _addWholeProgramToCalendar(context),
-                              icon: const Icon(
-                                Icons.add_circle_outline,
-                                size: 20,
-                              ),
+                              icon: const Icon(Icons.add_circle_outline, size: 20),
                               label: const Text('เพิ่มโปรแกรม'),
                               style: FilledButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
                                 textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.3,
-                                ),
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
+                                    borderRadius: BorderRadius.circular(14)),
                               ),
                             ),
                           ),
@@ -496,15 +440,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
             // switch week
             if (_selectedWeeks > 1)
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 12,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
@@ -513,22 +453,17 @@ class _ScheduleTabState extends State<ScheduleTab> {
                         blurRadius: 12,
                         offset: const Offset(0, 2),
                         color: Colors.black.withOpacity(.04),
-                      ),
+                      )
                     ],
                   ),
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => setState(
-                          () => _weekIndex = (_weekIndex - 1).clamp(
-                            0,
-                            _selectedWeeks - 1,
-                          ),
-                        ),
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: Color(0xFFFF6F00),
-                        ),
+                        onPressed: () => setState(() =>
+                            _weekIndex =
+                                (_weekIndex - 1).clamp(0, _selectedWeeks - 1)),
+                        icon: const Icon(Icons.chevron_left,
+                            color: Color(0xFFFF6F00)),
                       ),
                       Expanded(
                         child: Center(
@@ -543,16 +478,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
                         ),
                       ),
                       IconButton(
-                        onPressed: () => setState(
-                          () => _weekIndex = (_weekIndex + 1).clamp(
-                            0,
-                            _selectedWeeks - 1,
-                          ),
-                        ),
-                        icon: const Icon(
-                          Icons.chevron_right,
-                          color: Color(0xFFFF6F00),
-                        ),
+                        onPressed: () => setState(() =>
+                            _weekIndex =
+                                (_weekIndex + 1).clamp(0, _selectedWeeks - 1)),
+                        icon: const Icon(Icons.chevron_right,
+                            color: Color(0xFFFF6F00)),
                       ),
                     ],
                   ),
@@ -582,9 +512,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
                       borderRadius: BorderRadius.circular(16),
                       border: isRest
                           ? Border.all(
-                              color: const Color(0xFFE0E0E0),
-                              width: 1.5,
-                            )
+                              color: const Color(0xFFE0E0E0), width: 1.5)
                           : null,
                       boxShadow: isRest
                           ? null
@@ -593,7 +521,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                 blurRadius: 12,
                                 offset: const Offset(0, 3),
                                 color: Colors.black.withOpacity(.05),
-                              ),
+                              )
                             ],
                     ),
                     child: Row(
@@ -608,10 +536,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
                                 : const LinearGradient(
                                     colors: [
                                       Color(0xFFFF6F00),
-                                      Color(0xFFFF8F00),
+                                      Color(0xFFFF8F00)
                                     ],
                                   ),
-                            color: isRest ? const Color(0xFFF5F5F5) : null,
+                            color:
+                                isRest ? const Color(0xFFF5F5F5) : null,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Center(
@@ -720,11 +649,7 @@ class _MiniCell extends StatelessWidget {
   final String headline;
   final String value;
   final bool isRest;
-  const _MiniCell({
-    required this.headline,
-    required this.value,
-    this.isRest = false,
-  });
+  const _MiniCell({required this.headline, required this.value, this.isRest = false});
 
   @override
   Widget build(BuildContext context) {
@@ -732,14 +657,10 @@ class _MiniCell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
-        color: isRest
-            ? const Color(0xFFFAFAFA)
-            : const Color(0xFFFF6F00).withOpacity(.08),
+        color: isRest ? const Color(0xFFFAFAFA) : const Color(0xFFFF6F00).withOpacity(.08),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isRest
-              ? const Color(0xFFEEEEEE)
-              : const Color(0xFFFF6F00).withOpacity(.15),
+          color: isRest ? const Color(0xFFEEEEEE) : const Color(0xFFFF6F00).withOpacity(.15),
         ),
       ),
       child: Column(

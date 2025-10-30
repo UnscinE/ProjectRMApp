@@ -99,8 +99,7 @@ class ProgramRepo {
     String? calendarTitle,
     required String source, // 'device_calendar' | 'ics'
     required List<List<Map<String, String>>> planSnapshot,
-    required List<Map<String, dynamic>>
-    dailyTrainings, // <-- ข้อมูล Training รายวัน
+    required List<Map<String, dynamic>> dailyTrainings, // <-- ข้อมูล Training รายวัน
   }) async {
     // 1. กำหนด Reference สำหรับ Program Subcollection
     final programColRef = _userCol.doc(userId).collection('Program');
@@ -114,9 +113,7 @@ class ProgramRepo {
 
     // **แก้ไขข้อผิดพลาด Nested arrays are not supported**
     // 4. สร้าง List ของ Map ที่เป็นรายการฝึกซ้อมทั้งหมดแบบเรียบ (Flat List)
-    final List<Map<String, dynamic>> flatPlanSnapshot = dailyTrainings.map((
-      data,
-    ) {
+    final List<Map<String, dynamic>> flatPlanSnapshot = dailyTrainings.map((data) {
       return {
         'week': data['week'],
         'dayOfWeek': data['dayOfWeek'],
@@ -147,13 +144,11 @@ class ProgramRepo {
     // 7. เพิ่มรายการ Training รายวันทั้งหมดลงใน Batch
     for (final trainingData in dailyTrainings) {
       final DateTime date = trainingData['date'];
-      final String dateId = dateFormatter.format(
-        date,
-      ); // แปลงวันที่เป็น String ID (YYYY-MM-DD)
+      final String dateId = dateFormatter.format(date); // แปลงวันที่เป็น String ID (YYYY-MM-DD)
 
       // กำหนด Document ID เป็นวันที่
-      final trainingDocRef = trainingColRef.doc(dateId);
-
+      final trainingDocRef = trainingColRef.doc(dateId); 
+      
       // สร้างข้อมูลสำหรับบันทึก
       final data = Map<String, dynamic>.from(trainingData);
       data['date'] = Timestamp.fromDate(date); // เก็บวันที่จริงเป็น Timestamp
@@ -173,12 +168,14 @@ class ProgramRepo {
     String userId,
   ) async {
     final programColRef = _userCol.doc(userId).collection('Program');
-
+    
     final q = await programColRef
         .where('status', isEqualTo: 'active')
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
     return q.docs.isEmpty ? null : q.docs.first;
+    
   }
 }
+

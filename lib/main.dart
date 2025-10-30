@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'src/auth_gate.dart';
-// << ตรงนี้สำคัญ ชี้มาที่ lib/src/auth_gate.dart
+                 // << ตรงนี้สำคัญ ชี้มาที่ lib/src/auth_gate.dart
 import 'package:timezone/data/latest.dart' as tzdata;
 
 Future<void> main() async {
@@ -22,7 +22,9 @@ class RunningApp extends StatelessWidget {
       title: 'Running App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepPurple),
-      home: const AuthGate(), // << ใช้คลาส AuthGate
+      home: const AuthGate(),                   // << ใช้คลาส AuthGate
     );
   }
+
+  
 }
