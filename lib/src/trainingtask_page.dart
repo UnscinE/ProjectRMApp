@@ -327,8 +327,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
     if (user == null || _currentProgramId == null) return;
 
     final dateKey = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    final totalDistanceKm = _totalDistanceMeters / 1000.0;
-    final avgSpeedKph = _secs == 0 ? 0.0 : (totalDistanceKm / (_secs / 3600));
+    var totalDistanceKm = 0.00;
+    
     String two(int n) => n.toString().padLeft(2, '0');
     final durationStr =
         '${two(Duration(seconds: _secs).inHours)}:'
@@ -336,9 +336,24 @@ class _ScreenTwoState extends State<ScreenTwo> {
         '${two(_secs % 60)}';
 
     final ref = FirebaseFirestore.instance
-        .collection('users').doc(user.uid)
-        .collection('Program').doc(_currentProgramId!)
-        .collection('Training').doc(dateKey);
+        .collection('users')
+        .doc(user.uid)
+        .collection('Program')
+        .doc(_currentProgramId!)
+        .collection('Training')
+        .doc(dateKey);
+
+    if (_interval != null) {
+      double i = 0;
+      for (double meters in _interval!.lapMeters) {
+        i += meters;
+      }
+      totalDistanceKm = i / 1000.0;
+    } else {
+      totalDistanceKm = _totalDistanceMeters / 1000.0;
+    }
+
+    final avgSpeedKph = _secs == 0 ? 0.0 : (totalDistanceKm / (_secs / 3600));
 
     final body = {
       'date': Timestamp.now(),
@@ -361,6 +376,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
         'total_reps': _interval!.totalReps,
         'reps_done': _interval!.repsDone,
         'lap_progress': _interval!.currentLapProgress,
+        //
         'laps': _interval!.lapMeters,
         'mode': _intervalMode,
         'rest_left_s': _intervalMode == 'rest' ? _restLeft : 0,
@@ -388,13 +404,14 @@ class _ScreenTwoState extends State<ScreenTwo> {
         return;
     }
 
-    _locationSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 1,
-      ),
-    ).listen((pos) {
-      if (!mounted) return;
+    _locationSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 1,
+          ),
+        ).listen((pos) {
+          if (!mounted) return;
 
           double inc = 0.0;
           if (_lastPosition != null) {
@@ -772,7 +789,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
           ),
         ),
@@ -786,7 +804,9 @@ class _ScreenTwoState extends State<ScreenTwo> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
                         elevation: 4,
                         color: Colors.white,
                         child: Padding(
@@ -819,7 +839,9 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                   value: progress,
                                   minHeight: 12,
                                   backgroundColor: const Color(0xFFECECEC),
-                                  valueColor: const AlwaysStoppedAnimation(Color(0xFFFF6F00)),
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    Color(0xFFFF6F00),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -844,16 +866,20 @@ class _ScreenTwoState extends State<ScreenTwo> {
                               SizedBox(
                                 height: 250,
                                 child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Expanded(
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFFFF3E0),
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                         child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             _statRow(
                                               'Time',
@@ -874,13 +900,20 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFFFF3E0),
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                         child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             _statRow('Activity', _activity, ''),
-                                            _statRow('Speed', '$_speedKmhText km/h', ''),
+                                            _statRow(
+                                              'Speed',
+                                              '$_speedKmhText km/h',
+                                              '',
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -894,7 +927,9 @@ class _ScreenTwoState extends State<ScreenTwo> {
                       ),
                       const SizedBox(height: 24),
                       Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 4,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -929,14 +964,22 @@ class _ScreenTwoState extends State<ScreenTwo> {
                       ),
                       const SizedBox(height: 24),
                       Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 4,
                         child: ElevatedButton(
-                          onPressed: _isTraining ? _stopTraining : _startCountdown,
+                          onPressed: _isTraining
+                              ? _stopTraining
+                              : _startCountdown,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 24),
-                            backgroundColor: _isTraining ? Colors.redAccent : const Color(0xFFFF6F00),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            backgroundColor: _isTraining
+                                ? Colors.redAccent
+                                : const Color(0xFFFF6F00),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             elevation: 0,
                           ),
                           child: Text(
@@ -1067,8 +1110,23 @@ class _ScreenTwoState extends State<ScreenTwo> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2, color: const Color(0xFF212121))),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: const Color(0xFF616161))),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+              color: const Color(0xFF212121),
+            ),
+          ),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF616161),
+            ),
+          ),
           if (sub.isNotEmpty)
             Text(
               sub,
