@@ -92,17 +92,21 @@ class _DashboardTabState extends State<DashboardTab> {
       }
 
       double sum = 0;
-      int days = q.docs.length;
+      int days = 0;
 
       for (final d in q.docs) {
-        final raw = d.data()['progress_bar_percent'];
-        double v = switch (raw) {
-          int x => x.toDouble(),
-          double x => x,
-          String s => double.tryParse(s) ?? 0.0,
-          _ => 0.0,
-        };
-        sum += v;
+        if (d.data()['type'] != 'Rest') {
+          final raw = d.data()['progress_bar_percent'];
+          double v = switch (raw) {
+            int x => x.toDouble(),
+            double x => x,
+            String s => double.tryParse(s) ?? 0.0,
+            _ => 0.0,
+          };
+          sum += v;
+          days += 1;
+          print(days);
+        }
       }
 
       final avg100 = days == 0 ? 0.0 : sum / days;
@@ -260,8 +264,8 @@ class _DashboardTabState extends State<DashboardTab> {
       });
     } catch (_) {
       setState(() {
-        _runningType = 'Error';
-        _runningTargetText = 'Error';
+        _runningType = 'N/A';
+        _runningTargetText = 'N/A';
         _timeTargetSec = 0; // <<-- เปลี่ยนเป็นตัวแปรสำหรับวินาที
         _targetDistanceKm = 0.0;
       });
