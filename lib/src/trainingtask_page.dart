@@ -74,7 +74,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
   String _runningType = 'Long Run';
   String _runningTargetText = ''; // เช่น "3 KM" หรือ "400 m × 4"
   String _timeTargetText = ''; // เช่น "1:30 / 3:50"
-  int _timeTargetMin = 0;
+  int _timeTargetSec = 0;
+  String _timeTargetMinText = 'N/A';
   double _targetDistanceKm = 0.0;
 
   // Interval runtime (ถ้าวันนี้เป็น Interval)
@@ -95,6 +96,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
   Timer? _timer;
   int _secs = 0;
   bool _running = false;
+  int _secInter = 0;
 
   // Countdown overlay
   int _countdown = 0;
@@ -165,15 +167,15 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final t = _runningType.toLowerCase();
 
     // Tempo = คิดแบบเดียวกับ Recovery/Long/Easy → “ระยะทางล้วน”
-    if (t.contains('recovery') ||
-        t.contains('easy') ||
-        t.contains('long') ||
-        t.contains('tempo')) {
-      return [0.0, 1.0]; // [น้ำหนักเวลา, น้ำหนักระยะ]
-    }
+    // if (t.contains('recovery') ||
+    //     t.contains('easy') ||
+    //     t.contains('long') ||
+    //     t.contains('tempo')) {
+    //   return [0.0, 1.0]; // [น้ำหนักเวลา, น้ำหนักระยะ]
+    // }
 
     // ดีฟอลต์: มีทั้งเวลาและระยะ → 50/50, มีอย่างเดียวก็อิงอย่างเดียว
-    final hasTime = _timeTargetMin > 0;
+    final hasTime = _timeTargetSec > 0;
     final hasDist = _targetDistanceKm > 0;
     if (hasTime && hasDist) return [0.5, 0.5];
     if (hasTime) return [1.0, 0.0];
@@ -203,7 +205,8 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _currentProgramId == null) return;
 
-    final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    final todayId = '02-11-2025';
+    //DateFormat('dd-MM-yyyy').format(DateTime.now());
     final docRef = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
@@ -219,35 +222,82 @@ class _ScreenTwoState extends State<ScreenTwo> {
           _runningType = 'No Plan';
           _runningTargetText = 'N/A';
           _timeTargetText = 'N/A';
-          _timeTargetMin = 0;
+          _timeTargetSec = 0;
           _targetDistanceKm = 0.0;
           _interval = null;
         });
         return;
       }
 
+      String targetmintext = 'N/A';
+
       final data = snap.data()!;
-      final distanceText = (data['distance']?.toString() ?? '').trim();
+      var distanceText = (data['distance']?.toString() ?? '').trim();
       final timeText = (data['time']?.toString() ?? '').trim();
       final typeText = (data['type']?.toString() ?? 'Rest').trim();
 
       // minutes (เฉพาะใช้โชว์)
-      final minutesNum =
-          int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      var secondsNum = 0;
+
+      if (_interval != null) {
+        secondsNum =
+            int.tryParse(timeText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0 * 60;
+
+        targetmintext = secondsNum.toString();
+      } else {
+        var min = 0;
+        var sec = 0;
+        //minutesNum = int.tryParse(timeText.replaceAll(RegExp(r'(?<=\/\s*)\d{1,2}:\d{2}'), '')) ?? 0;
+
+        min =
+            int.tryParse(
+              RegExp(r'(?<=\/\s*)\d{1,2}').firstMatch(timeText)?.group(0) ??
+                  '0',
+            ) ??
+            0;
+        sec =
+            int.tryParse(
+              RegExp(
+                    r'(?<=\/\s*\d{1,2}:)\d{2}',
+                  ).firstMatch(timeText)?.group(0) ??
+                  '0',
+            ) ??
+            0;
+
+        secondsNum = min * 60 + sec;
+
+        targetmintext = '$min:$sec';
+        print(targetmintext);
+        print(secondsNum);
+      }
+      ;
+
       final distanceNum =
           double.tryParse(distanceText.replaceAll(RegExp(r'[^0-9.]'), '')) ??
           0.0;
 
       _IntervalRuntime? interval;
       if (typeText.toLowerCase() == 'interval') {
+        double inttexttoshow = 0.0;
+
         interval = _buildIntervalFromStrings(distanceText);
+        final RegExpMatch? match = RegExp(
+          r'(\d+)\s*m\s*[x×]\s*(\d+)',
+        ).firstMatch(distanceText.trim());
+
+        inttexttoshow = (match == null)
+            ? 0
+            : ((double.tryParse(match.group(1)!) ?? 0) *
+                  (double.tryParse(match.group(2)!) ?? 0));
+        distanceText = '${(inttexttoshow / 1000).toStringAsFixed(1)} KM';
       }
 
       setState(() {
         _runningType = typeText;
         _runningTargetText = distanceText;
         _timeTargetText = timeText;
-        _timeTargetMin = minutesNum;
+        _timeTargetSec = secondsNum;
+        _timeTargetMinText = targetmintext;
         _interval = interval;
         _intervalMode = 'run';
         _intervalRestSec = _parseRestSec(timeText); // ดึงเวลาพักจากสตริง
@@ -265,7 +315,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
         _runningType = 'Error';
         _runningTargetText = 'Error';
         _timeTargetText = 'Error';
-        _timeTargetMin = 0;
+        _timeTargetSec = 0;
         _targetDistanceKm = 0.0;
         _interval = null;
       });
@@ -294,13 +344,12 @@ class _ScreenTwoState extends State<ScreenTwo> {
     try {
       await ref.set({
         'type': _runningType,
-        'distance': _runningTargetText,
         // summary
         'distance_km': _totalDistanceMeters / 1000.0,
         'duration_s': _secs,
         'average_speed_kph': _secs == 0
             ? 0.0
-            : (_totalDistanceMeters / 1000.0) / (_secs / 3600.0),
+            : ((_totalDistanceMeters / 1000.0) / (_secs / 3600.0)).roundToDouble(),
         // interval detail
         'interval': {
           'segment_m': _interval!.segmentMeters,
@@ -328,7 +377,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
 
     final dateKey = DateFormat('dd-MM-yyyy').format(DateTime.now());
     var totalDistanceKm = 0.00;
-    
+
     String two(int n) => n.toString().padLeft(2, '0');
     final durationStr =
         '${two(Duration(seconds: _secs).inHours)}:'
@@ -358,7 +407,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final body = {
       'date': Timestamp.now(),
       'type': _runningType,
-      'distance': _runningTargetText,
+      //'distance': _runningTargetText,
       'activity': _activity,
       'distance_km': totalDistanceKm,
       'duration_s': _secs,
@@ -541,7 +590,19 @@ class _ScreenTwoState extends State<ScreenTwo> {
     if (_running) return;
     _running = true;
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() => _secs++);
+      try {
+        if (_interval == null) {
+          setState(() => _secs++);
+        } else if (_intervalMode == 'run' && _interval != null) {
+          setState(() => _secInter++);
+          setState(() => _secs++);
+        } else if (_intervalMode == 'rest') {
+          _secInter = 0;
+        }
+      } catch (e) {
+        print(e);
+      }
+
       // Auto-stop สำหรับแผนแบบ non-interval ด้วย "เป้าระยะรวม"
       if (_interval == null &&
           _targetDistanceKm > 0 &&
@@ -580,9 +641,12 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final wDist = weightDistance ?? w[1];
 
     double pTime = 0.0;
-    if (_timeTargetMin > 0) {
-      final targetSecs = _timeTargetMin * 60;
+    if (_timeTargetSec > 0 && _secs <= _timeTargetSec) {
+      final targetSecs = _timeTargetSec;
+
       pTime = _secs / targetSecs;
+    } else {
+      pTime = 1.0 - _timeTargetSec / _secs;
     }
 
     double pDist = 0.0;
@@ -595,8 +659,16 @@ class _ScreenTwoState extends State<ScreenTwo> {
   }
 
   String get _timeText {
-    final m = (_secs ~/ 60).toString().padLeft(2, '0');
-    final s = (_secs % 60).toString().padLeft(2, '0');
+    final m;
+    final s;
+
+    if (_interval != null) {
+      m = (_secInter ~/ 60).toString().padLeft(2, '0');
+      s = (_secInter % 60).toString().padLeft(2, '0');
+    } else {
+      m = (_secs ~/ 60).toString().padLeft(2, '0');
+      s = (_secs % 60).toString().padLeft(2, '0');
+    }
     return '$m:$s';
   }
 
@@ -650,6 +722,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Training started!')));
+
     _startStopwatch();
     _initLocationService();
 
@@ -884,7 +957,7 @@ class _ScreenTwoState extends State<ScreenTwo> {
                                             _statRow(
                                               'Time',
                                               _timeText,
-                                              '${_timeTargetMin} Min',
+                                              '${_timeTargetMinText} Min',
                                             ),
                                             _statRow(
                                               'Distance',

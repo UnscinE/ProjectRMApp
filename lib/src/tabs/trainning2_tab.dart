@@ -23,7 +23,7 @@ class _Trainning2TabState extends State<Trainning2Tab> {
   @override
   void initState() {
     super.initState();
-     _loadProgramId();
+    _loadProgramId();
   }
 
   Future<void> _loadProgramId() async {
@@ -42,7 +42,8 @@ class _Trainning2TabState extends State<Trainning2Tab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _currentProgramId == null) return;
 
-    final todayId = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    final todayId = '02-11-2025';
+    //DateFormat('dd-MM-yyyy').format(DateTime.now());
     final docRef = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
@@ -406,35 +407,35 @@ class _Trainning2TabState extends State<Trainning2Tab> {
   }
 
   Widget _dateTimeCard(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-              color: Colors.black.withOpacity(.05),
-            ),
-          ],
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+          color: Colors.black.withOpacity(.05),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _InfoItem(
-              icon: Icons.calendar_today,
-              label: 'วันที่',
-              value: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-            ),
-            Container(width: 1, height: 36, color: const Color(0xFFE0E0E0)),
-            _InfoItem(
-              icon: Icons.access_time,
-              label: 'เวลา',
-              value: TimeOfDay.now().format(context),
-            ),
-          ],
+      ],
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _InfoItem(
+          icon: Icons.calendar_today,
+          label: 'วันที่',
+          value: DateFormat('yyyy-MM-dd').format(DateTime.now()),
         ),
-      );
+        Container(width: 1, height: 36, color: const Color(0xFFE0E0E0)),
+        _InfoItem(
+          icon: Icons.access_time,
+          label: 'เวลา',
+          value: TimeOfDay.now().format(context),
+        ),
+      ],
+    ),
+  );
 
   Widget _summaryTodayCard(ThemeData theme) {
     final stream = _todayDocStream();
@@ -453,13 +454,15 @@ class _Trainning2TabState extends State<Trainning2Tab> {
           return _emptyCard(theme, 'ยังไม่มีบันทึกการฝึกวันนี้');
 
         final data = snap.data!.data() ?? {};
-        final progress =
-            ((data['progress_bar_percent'] ?? 0) as num).clamp(0, 100).toDouble();
+        final progress = ((data['progress_bar_percent'] ?? 0) as num)
+            .clamp(0, 100)
+            .toDouble();
         final distanceKm = ((data['distance_km'] ?? 0) as num).toDouble();
         final duration = (data['duration_display'] ?? '-') as String;
         final avgSpeed =
-            (data['average_speed_kph'] ?? data['average_speed_kpn'] ?? '0')
-                .toString();
+            (double.tryParse(data['average_speed_kph']?.toString() ?? '0') ??
+                    0.0)
+                .toStringAsFixed(2);
         final activity = (data['activity'] ?? '-').toString();
         final typeLower = (data['type'] ?? '').toString().toLowerCase();
 
@@ -522,8 +525,11 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.timeline,
-                        color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.timeline,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -545,8 +551,7 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                   value: (progress / 100.0).clamp(0.0, 1.0),
                   minHeight: 10,
                   backgroundColor: const Color(0xFFECECEC),
-                  valueColor:
-                      const AlwaysStoppedAnimation(Color(0xFF10B981)),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFF10B981)),
                 ),
               ),
               const SizedBox(height: 6),
@@ -570,11 +575,7 @@ class _Trainning2TabState extends State<Trainning2Tab> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _statCell(
-                      theme,
-                      headline: 'เวลา',
-                      value: duration,
-                    ),
+                    child: _statCell(theme, headline: 'เวลา', value: duration),
                   ),
                 ],
               ),
@@ -610,47 +611,47 @@ class _Trainning2TabState extends State<Trainning2Tab> {
   }
 
   Widget _emptyCard(ThemeData theme, String text) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF616161),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _loadingCard() => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation(Color(0xFFFF6F00)),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE0E0E0)),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF616161),
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
-      );
+      ],
+    ),
+  );
+
+  Widget _loadingCard() => Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE0E0E0)),
+    ),
+    child: const Center(
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(
+          strokeWidth: 3,
+          valueColor: AlwaysStoppedAnimation(Color(0xFFFF6F00)),
+        ),
+      ),
+    ),
+  );
 
   Widget _statCell(
     ThemeData theme, {
