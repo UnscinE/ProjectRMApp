@@ -205,8 +205,9 @@ class _ScreenTwoState extends State<ScreenTwo> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _currentProgramId == null) return;
 
-    final todayId = '02-11-2025';
-    //DateFormat('dd-MM-yyyy').format(DateTime.now());
+    final todayId = 
+    //'02-11-2025';
+    DateFormat('dd-MM-yyyy').format(DateTime.now());
     final docRef = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)

@@ -47,7 +47,7 @@ class _DashboardTabState extends State<DashboardTab> {
 
   // แผนของวันนี้
   String _runningType = 'Long Run';
-  String _runningTargetText = ''; // เช่น "3 KM"
+  String _runningTargetText = 'N/A'; // เช่น "3 KM"
   int _timeTargetMin = 0; // นาที
   double _targetDistanceKm = 0.0; // กิโลเมตร (parse จาก _runningTargetText)
 
@@ -279,7 +279,7 @@ class _DashboardTabState extends State<DashboardTab> {
     } catch (_) {
       setState(() {
         _runningType = 'Error';
-        _runningTargetText = 'Error';
+        _runningTargetText = 'N/A';
         _timeTargetSec = 0; // <<-- เปลี่ยนเป็นตัวแปรสำหรับวินาที
         _targetDistanceKm = 0.0;
       });
