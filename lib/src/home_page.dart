@@ -24,6 +24,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  Key _trainning2Key = UniqueKey();
   int _index = 0;
   int targetKm = 5;
   int trainingWeeks = 4;
@@ -182,7 +183,7 @@ class _HomePageState extends State<HomePage> {
       ),
       ScheduleTab(weeks: trainingWeeks, targetKm: targetKm),
       const CalendarTab(),
-      const Trainning2Tab(),
+      Trainning2Tab(key: _trainning2Key),
       AccountTab(
         email: user?.email ?? 'Runner',
         displayName: user?.displayName,
@@ -249,7 +250,17 @@ class _HomePageState extends State<HomePage> {
         ),
         child: NavigationBar(
           selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+onDestinationSelected: (i) {
+    setState(() {
+      _index = i;
+      if (i == 3) { // 👈 ถ้าแท็บที่ 3 คือ Trainning2Tab
+        _trainning2Key = UniqueKey(); // ✅ โหลดใหม่ทุกครั้ง
+      }
+    });
+  },
+
+          
+          
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
