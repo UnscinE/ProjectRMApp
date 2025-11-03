@@ -39,14 +39,15 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            
         }
     }
 }
 
 
 dependencies {
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")
+    //implementation("org.tensorflow:tensorflow-lite:2.16.1")
+   // implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")
 }
 
 

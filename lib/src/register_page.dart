@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rmapp/src/home_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -47,6 +48,10 @@ class _RegisterPageState extends State<RegisterPage> {
       };
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()), // แทน HomePage ด้วยหน้าจริงของคุณ
+      );
       }
     } finally {
       if (mounted) setState(() => _loading = false);

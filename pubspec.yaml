@@ -39,11 +39,11 @@ dependencies:
   add_2_calendar: ^3.0.1
 
   # ใช้เรียก model มาใช้งาน
-  tflite_flutter: ^0.11.0
+  tflite_flutter: ^0.12.1
 
 
   #จัดการฟอร์แมตวันที่
-  intl: ^0.18.1 # หรือเวอร์ชันล่าสุด
+  intl: ^0.20.2 # หรือเวอร์ชันล่าสุด
 
 dev_dependencies:
   flutter_test:

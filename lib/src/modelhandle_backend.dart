@@ -42,7 +42,7 @@ class HarModelPredictor {
   Future<void> loadModel() async {
     final options = InterpreterOptions();
 
-    options.addDelegate(GpuDelegateV2(options: GpuDelegateOptionsV2()));
+    //options.addDelegate(GpuDelegateV2());
     
     // If you were previously using GpuDelegate(), you can add it back,
     // but ensure you have its native dependencies too (tensorflow-lite-gpu).
@@ -53,7 +53,7 @@ class HarModelPredictor {
     try {
       _interpreter = await Interpreter.fromAsset(
         'assets/thai_sign_model.tflite',
-        options: options, // Pass the (optional) options
+       // options: options, // Pass the (optional) options
       );
 
       print("----------------TEstttt------------------");
