@@ -25,6 +25,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   Key _trainning2Key = UniqueKey();
+  Key _dashboardTabKey = UniqueKey();
   int _index = 0;
   int targetKm = 5;
   int trainingWeeks = 4;
@@ -81,14 +82,16 @@ class _HomePageState extends State<HomePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        final data = await repo.ProgramRepo
-            .fetchActive(user.uid)
-            .timeout(const Duration(seconds: 6));
+        final data = await repo.ProgramRepo.fetchActive(
+          user.uid,
+        ).timeout(const Duration(seconds: 6));
 
         if (data != null) {
           final dist = (data['distance'] as num?)?.toInt();
-          final weeks = (data['duration_choice'] as num?)?.toInt() ??
-              ((data['duration'] is List && (data['duration'] as List).isNotEmpty)
+          final weeks =
+              (data['duration_choice'] as num?)?.toInt() ??
+              ((data['duration'] is List &&
+                      (data['duration'] as List).isNotEmpty)
                   ? ((data['duration'] as List).first as num).toInt()
                   : null);
 
@@ -143,7 +146,8 @@ class _HomePageState extends State<HomePage> {
       if (data == null) return;
 
       final dist = (data['distance'] as num?)?.toInt();
-      final weeks = (data['duration_choice'] as num?)?.toInt() ??
+      final weeks =
+          (data['duration_choice'] as num?)?.toInt() ??
           ((data['duration'] is List && (data['duration'] as List).isNotEmpty)
               ? ((data['duration'] as List).first as num).toInt()
               : null);
@@ -172,12 +176,13 @@ class _HomePageState extends State<HomePage> {
 
     final tabs = <Widget>[
       DashboardTab(
+        key: _dashboardTabKey,
         targetKm: targetKm,
         trainingWeeks: trainingWeeks,
         onContinue: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ScreenTwo()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const ScreenTwo()));
         },
         email: user?.email ?? 'Runner',
       ),
@@ -210,8 +215,9 @@ class _HomePageState extends State<HomePage> {
               ? const Center(
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFFFF6F00)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFFF6F00),
+                    ),
                   ),
                 )
               : IndexedStack(index: _index, children: tabs),
@@ -225,42 +231,43 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: const Color(0xFFF7F7F7),
           elevation: 0,
           indicatorColor: const Color(0xFFFF6F00).withOpacity(.14),
-          labelTextStyle: MaterialStateProperty.resolveWith<TextStyle?>(
-            (states) {
-              final selected = states.contains(MaterialState.selected);
-              return TextStyle(
-                fontWeight: FontWeight.w800,
-                letterSpacing: selected ? 0.2 : 0.1,
-                color: selected
-                    ? const Color(0xFF212121)
-                    : const Color(0xFF757575),
-              );
-            },
-          ),
-          iconTheme: MaterialStateProperty.resolveWith<IconThemeData?>(
-            (states) {
-              final selected = states.contains(MaterialState.selected);
-              return IconThemeData(
-                color: selected
-                    ? const Color(0xFFFF6F00)
-                    : const Color(0xFF9E9E9E),
-              );
-            },
-          ),
+          labelTextStyle: MaterialStateProperty.resolveWith<TextStyle?>((
+            states,
+          ) {
+            final selected = states.contains(MaterialState.selected);
+            return TextStyle(
+              fontWeight: FontWeight.w800,
+              letterSpacing: selected ? 0.2 : 0.1,
+              color: selected
+                  ? const Color(0xFF212121)
+                  : const Color(0xFF757575),
+            );
+          }),
+          iconTheme: MaterialStateProperty.resolveWith<IconThemeData?>((
+            states,
+          ) {
+            final selected = states.contains(MaterialState.selected);
+            return IconThemeData(
+              color: selected
+                  ? const Color(0xFFFF6F00)
+                  : const Color(0xFF9E9E9E),
+            );
+          }),
         ),
         child: NavigationBar(
           selectedIndex: _index,
-onDestinationSelected: (i) {
-    setState(() {
-      _index = i;
-      if (i == 3) { // 👈 ถ้าแท็บที่ 3 คือ Trainning2Tab
-        _trainning2Key = UniqueKey(); // ✅ โหลดใหม่ทุกครั้ง
-      }
-    });
-  },
+          onDestinationSelected: (i) {
+            setState(() {
+              _index = i;
+              if (i == 3) {
+                // 👈 ถ้าแท็บที่ 3 คือ Trainning2Tab
+                _trainning2Key = UniqueKey(); // ✅ โหลดใหม่ทุกครั้ง
+              } else if (i == 0) {
+                _dashboardTabKey = UniqueKey();
+              }
+            });
+          },
 
-          
-          
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),

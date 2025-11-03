@@ -70,7 +70,7 @@ class _DashboardTabState extends State<DashboardTab> {
   Future<void> _loadInitialData() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     // เลือก program id แบบง่าย ๆ (คุณจะเปลี่ยนให้ดึงจริงจาก repo ก็ได้)
-    _currentProgramId ??= '3AUgieOoHsrQ8Bl8AcTl';
+    //_currentProgramId ??= '3AUgieOoHsrQ8Bl8AcTl';
 
     await _loadTodayFromDeviceCalendar();
     if (userId != null && _currentProgramId != null) {
@@ -106,7 +106,7 @@ class _DashboardTabState extends State<DashboardTab> {
             _ => 0.0,
           };
           sum += v; // v เป็น 0..100
-          days ++;
+          days++;
           print(days);
         }
       }
@@ -115,6 +115,11 @@ class _DashboardTabState extends State<DashboardTab> {
       if (mounted) {
         setState(() => _averageSuccessPercent = (avg100 / 100).clamp(0, 1));
       }
+
+     setState(() {
+        _loading = false;
+     });
+      
     } catch (_) {
       /* ignore */
     }

@@ -39,6 +39,10 @@ class _RegisterPageState extends State<RegisterPage> {
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text,
       );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()), // แทน HomePage ด้วยหน้าจริงของคุณ
+      );
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
@@ -47,14 +51,13 @@ class _RegisterPageState extends State<RegisterPage> {
         _ => e.message ?? 'เกิดข้อผิดพลาด'
       };
       if (mounted) {
+        
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-        Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()), // แทน HomePage ด้วยหน้าจริงของคุณ
-      );
+        
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+      
     }
   }
 
